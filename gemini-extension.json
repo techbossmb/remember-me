@@ -1,0 +1,9 @@
+{
+  "name": "remember-me",
+  "version": "0.1.0",
+  "description": "Long-term memory for AI agents: verbatim conversation log + a map of it, in plain files shared with any assistant.",
+  "contextFileName": "GEMINI.md",
+  "mcpServers": {
+    "remember": { "command": "python3", "args": ["${extensionPath}/remember/cli.py", "mcp"] }
+  }
+}

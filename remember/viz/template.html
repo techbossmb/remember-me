@@ -1,0 +1,387 @@
+<title>remember.me Atlas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: three panes — outline (left), map canvas (center), dossier (right); stacks on phones. */
+:root{
+  --bg:#EEF1F4; --surface:#FFFFFF; --sunk:#F6F8FA; --ink:#16202A; --muted:#5A6774; --line:#D3DAE1;
+  --accent:#2C55C9; --accent-soft:#E3EAFB;
+  --active:#2C55C9; --paused:#B26B00; --resolved:#2E7D4F; --reference:#7C8794;
+  --e-pivot:#7E46D1; --e-disc:#C9541E; --e-dep:#0F7F80; --e-rev:#2C7BC9; --e-sup:#B83232; --e-rel:#8A96A3; --e-con:#B83232;
+  --rule-bg:#FFF6E5; --rule-line:#E7C98C;
+  --f-display:"IBM Plex Sans Condensed","Arial Narrow",system-ui,sans-serif;
+  --f-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0E1318; --surface:#151C23; --sunk:#111820; --ink:#E4EAF0; --muted:#93A0AD; --line:#29343F;
+  --accent:#86A6FF; --accent-soft:#1E2A45;
+  --active:#86A6FF; --paused:#E3A64A; --resolved:#6CC08F; --reference:#8C97A3;
+  --e-pivot:#B48CF2; --e-disc:#F08B5B; --e-dep:#4FC4C4; --e-rev:#6BAEF0; --e-sup:#F07272; --e-rel:#6F7C89; --e-con:#F07272;
+  --rule-bg:#2A2214; --rule-line:#5C4A26; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0E1318; --surface:#151C23; --sunk:#111820; --ink:#E4EAF0; --muted:#93A0AD; --line:#29343F;
+  --accent:#86A6FF; --accent-soft:#1E2A45;
+  --active:#86A6FF; --paused:#E3A64A; --resolved:#6CC08F; --reference:#8C97A3;
+  --e-pivot:#B48CF2; --e-disc:#F08B5B; --e-dep:#4FC4C4; --e-rev:#6BAEF0; --e-sup:#F07272; --e-rel:#6F7C89; --e-con:#F07272;
+  --rule-bg:#2A2214; --rule-line:#5C4A26; color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{background:var(--bg);color:var(--ink);font:14px/1.5 var(--f-body);margin:0}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.mono{font-family:var(--f-mono);font-size:12px}
+.app{display:grid;grid-template-rows:auto 1fr;height:100%;padding-inline:16px;gap:12px;padding-block:12px}
+header{display:flex;flex-wrap:wrap;align-items:center;gap:12px 20px}
+.brand{font-family:var(--f-display);font-weight:600;font-size:20px;letter-spacing:.01em;display:flex;align-items:baseline;gap:8px}
+.brand small{font:500 11px var(--f-mono);color:var(--muted);letter-spacing:.06em;text-transform:uppercase}
+.tabs{display:flex;gap:4px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:3px}
+.tabs button{border:0;background:none;padding:5px 12px;border-radius:6px;cursor:pointer;color:var(--muted);font-weight:500}
+.tabs button[aria-pressed="true"]{background:var(--accent-soft);color:var(--ink)}
+.search{flex:1 1 220px;max-width:360px;position:relative}
+.search input{width:100%;padding:7px 10px 7px 30px;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
+.search svg{position:absolute;left:9px;top:50%;transform:translateY(-50%);width:14px;height:14px;stroke:var(--muted);fill:none}
+.stats{color:var(--muted);font-size:12px;font-family:var(--f-mono);display:flex;gap:12px;flex-wrap:wrap}
+.main{display:grid;grid-template-columns:minmax(220px,280px) minmax(0,1fr) minmax(300px,400px);gap:12px;min-height:0}
+.pane{background:var(--surface);border:1px solid var(--line);border-radius:10px;min-height:0;min-width:0;display:flex;flex-direction:column;overflow:hidden}
+.pane h2{font:600 11px var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0;padding:10px 12px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:8px}
+.scroll{overflow:auto;min-height:0;flex:1}
+/* outline */
+.tree{list-style:none;margin:0;padding:6px 0}
+.tree ul{list-style:none;margin:0;padding-left:14px;border-left:1px dashed var(--line);margin-left:13px}
+.row{display:flex;align-items:center;gap:6px;padding:4px 10px;cursor:pointer;border-radius:6px;margin:0 4px}
+.row:hover{background:var(--sunk)}
+.row[aria-selected="true"]{background:var(--accent-soft)}
+.row.dim{opacity:.35}
+.row .id{font:500 11px var(--f-mono);color:var(--muted);min-width:28px}
+.row .t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dot{width:9px;height:9px;border-radius:50%;flex:none;border:2px solid var(--c);background:var(--c)}
+.dot.paused{background:transparent}
+.dot.reference{border-radius:2px}
+.oq{font:500 10px var(--f-mono);color:var(--paused);border:1px solid currentColor;border-radius:9px;padding:0 5px}
+/* canvas */
+.canvas{position:relative;flex:1;min-height:0;background:
+  radial-gradient(circle,var(--line) 1px,transparent 1.2px) 0 0/22px 22px var(--sunk)}
+.canvas svg{width:100%;height:100%;display:block;cursor:grab;touch-action:none}
+.canvas svg.drag{cursor:grabbing}
+.node{cursor:pointer}
+.node circle.core{stroke:var(--surface);stroke-width:2}
+.node circle.halo{fill:none;stroke:var(--accent);stroke-width:2.5;opacity:0}
+.node.sel circle.halo{opacity:1}
+.node.hit circle.halo{opacity:.9;stroke-dasharray:4 3}
+.node .lbl{fill:var(--ink);font:500 11.5px var(--f-body);paint-order:stroke;stroke:var(--sunk);stroke-width:4px;stroke-linejoin:round;pointer-events:none}
+.node .nid{fill:var(--surface);font:600 9.5px var(--f-mono);pointer-events:none}
+.node .nid.out{fill:var(--muted)}
+.node .badge{fill:var(--paused)} .node .badgeT{fill:var(--surface);font:700 9px var(--f-mono);pointer-events:none}
+.node.dim{opacity:.22}
+.node:hover .lbl{font-weight:600}
+.canvas.far .node:not(.sel):not(.hit):not(.top) .lbl{display:none}
+.tree-edge{fill:none;stroke:var(--muted);stroke-width:1.1;opacity:.35}
+.link{fill:none;stroke-width:1.7;opacity:.85}
+.link.dim,.tree-edge.dim{opacity:.06}
+.legend{position:absolute;left:10px;bottom:10px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:8px 10px;display:flex;flex-wrap:wrap;gap:6px 12px;max-width:calc(100% - 20px);font-size:11px;color:var(--muted)}
+.legend span{display:flex;align-items:center;gap:5px;white-space:nowrap}
+.legend i{display:inline-block;width:16px;height:0;border-top:2px solid var(--c)}
+.legend i.dash{border-top-style:dashed}
+.zoom{position:absolute;right:10px;top:10px;display:flex;gap:4px}
+.zoom button{width:30px;height:30px;border:1px solid var(--line);background:var(--surface);border-radius:6px;cursor:pointer}
+/* dossier */
+.dossier{padding:14px 16px;display:flex;flex-direction:column;gap:14px}
+.eyebrow{font:500 11px var(--f-mono);color:var(--muted);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.chip{font:600 10px var(--f-mono);letter-spacing:.05em;text-transform:uppercase;padding:2px 7px;border-radius:10px;border:1px solid var(--c);color:var(--c)}
+.dossier h3{font:600 20px/1.25 var(--f-display);margin:0;text-wrap:balance}
+.summary{margin:0;max-width:62ch}
+.sec h4{font:600 11px var(--f-mono);letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin:0 0 6px}
+.sec ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:8px}
+.sec li{padding-left:12px;border-left:2px solid var(--c,var(--line))}
+.sec li q{display:block;color:var(--muted);font-style:italic;margin-top:2px}
+.sec li q::before{content:"“"} .sec li q::after{content:"”"}
+.why{color:var(--muted)}
+.spanbtn{font:500 11px var(--f-mono);background:var(--sunk);border:1px solid var(--line);border-radius:5px;padding:1px 6px;cursor:pointer;color:var(--accent);margin:2px 4px 0 0}
+.spanbtn:hover{border-color:var(--accent)}
+.aka{display:flex;flex-wrap:wrap;gap:6px}
+.aka span{background:var(--sunk);border:1px solid var(--line);border-radius:5px;padding:1px 7px;font-size:12px}
+.edges a{color:var(--ink);text-decoration:none;cursor:pointer;border-bottom:1px dotted var(--muted)}
+.rules{display:flex;flex-direction:column;gap:6px}
+.rule{background:var(--rule-bg);border:1px solid var(--rule-line);border-radius:8px;padding:7px 10px;display:grid;grid-template-columns:auto 1fr;gap:2px 8px}
+.rule .rid{font:600 11px var(--f-mono);color:var(--paused)}
+.rule .meta{grid-column:2;font:400 11px var(--f-mono);color:var(--muted)}
+.rule.superseded{opacity:.55}
+.rule.superseded>span:nth-child(2){text-decoration:line-through}
+.old{opacity:.55} .old>*:first-child{text-decoration:line-through}
+.editbox{border-top:1px solid var(--line);padding-top:12px;display:flex;flex-direction:column;gap:8px}
+.erow{display:grid;grid-template-columns:80px minmax(0,1fr) auto;gap:6px;align-items:center}
+.erow label{font:500 11px var(--f-mono);color:var(--muted)}
+.erow select,.erow input{min-width:0;padding:4px 6px;border:1px solid var(--line);border-radius:6px;background:var(--sunk)}
+.erow button{border:1px solid var(--line);background:var(--accent-soft);border-radius:6px;padding:4px 10px;cursor:pointer}
+pre.render{white-space:pre-wrap;word-break:break-word;font:12px/1.55 var(--f-mono);margin:0;padding:14px 16px;background:var(--sunk);flex:1}
+/* transcript drawer */
+.drawer{position:fixed;inset:0;background:color-mix(in srgb,var(--ink) 35%,transparent);display:flex;justify-content:flex-end;z-index:5}
+.drawer[hidden]{display:none!important}
+.drawer .panel{background:var(--surface);width:min(720px,100%);height:100%;display:flex;flex-direction:column;border-left:1px solid var(--line);padding-top:env(safe-area-inset-top,0px)}
+.drawer header{padding:12px 16px;border-bottom:1px solid var(--line);justify-content:space-between}
+.drawer header button{border:1px solid var(--line);background:var(--sunk);border-radius:6px;padding:4px 10px;cursor:pointer}
+.msgs{padding:12px 16px;display:flex;flex-direction:column;gap:12px}
+.msg{border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.msg .h{display:flex;gap:8px;align-items:center;padding:5px 10px;background:var(--sunk);font:500 11px var(--f-mono);color:var(--muted)}
+.msg .h b{color:var(--ink);font-weight:600}
+.msg.user .h b{color:var(--accent)}
+.msg.pivot{border-style:dashed}
+.msg .body{padding:8px 12px;white-space:pre-wrap;word-break:break-word;max-height:none}
+.empty{color:var(--muted);padding:14px 16px}
+@media (max-width:1100px){.main{grid-template-columns:minmax(0,1fr) minmax(280px,360px)}.outline{display:none}}
+@media (max-width:760px){
+  .app{height:auto;min-height:100%}
+  .main{grid-template-columns:minmax(0,1fr)}
+  .canvasPane{height:62vh}
+  .outline{display:flex;max-height:50vh}
+}
+@media (prefers-reduced-motion:no-preference){.node,.link,.row{transition:opacity .15s}}
+</style>
+
+<div class="app">
+  <header>
+    <div class="brand">remember.me <small>memory atlas</small></div>
+    <div class="tabs" id="projTabs" role="group" aria-label="Project"></div>
+    <div class="tabs" role="group" aria-label="View">
+      <button id="vMap" aria-pressed="true">Map</button>
+      <button id="vAgent" aria-pressed="false">What the agent sees</button>
+    </div>
+    <label class="search"><svg viewBox="0 0 24 24" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input id="q" type="search" placeholder="Search titles, summaries, aliases…" aria-label="Search the map"></label>
+    <div class="stats" id="stats"></div>
+  </header>
+  <div class="main" id="mapView">
+    <section class="pane outline"><h2>Outline</h2><div class="scroll"><ul class="tree" id="tree"></ul></div></section>
+    <section class="pane canvasPane">
+      <h2><span>Map · drag nodes or canvas, scroll to zoom</span><span class="mono" id="built"></span></h2>
+      <div class="canvas"><svg id="svg" role="img" aria-label="Memory map graph"></svg>
+        <div class="zoom"><button id="zin" aria-label="Zoom in">+</button><button id="zout" aria-label="Zoom out">−</button><button id="zfit" aria-label="Fit to view">⤢</button></div>
+        <div class="legend" id="legend"></div></div>
+    </section>
+    <section class="pane"><h2 id="dossierTitle">Rules — always in context</h2><div class="scroll"><div class="dossier" id="dossier"></div></div></section>
+  </div>
+  <div class="main" id="agentView" hidden style="grid-template-columns:minmax(0,1fr)">
+    <section class="pane"><h2><span>Injected at session start and after every compaction</span><span class="mono" id="renderSize"></span></h2><pre class="render" id="render"></pre></section>
+  </div>
+</div>
+<div class="drawer" id="drawer" hidden><div class="panel" role="dialog" aria-modal="true" aria-labelledby="drawerTitle">
+  <header><div><div class="eyebrow">raw log · verbatim</div><div class="mono" id="drawerTitle"></div></div><button id="drawerClose">Close</button></header>
+  <div class="scroll"><div class="msgs" id="msgs"></div></div></div></div>
+
+<script>
+let DATA = /*__DATA__*/null, LIVE=false, CUR=null;
+const STATUS = ["active","paused","resolved","reference"];
+const EDGE = {pivoted_from:["--e-pivot","pivoted from",0],discovered_during:["--e-disc","discovered during",0],depends_on:["--e-dep","depends on",0],
+  revisits:["--e-rev","revisits",0],supersedes:["--e-sup","supersedes",0],contradicts:["--e-con","contradicts",1],related:["--e-rel","related",1]};
+const $=s=>document.querySelector(s), esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const css=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+let P=null, G=null, byId={}, sel=null, view={x:0,y:0,k:1}, pos={};
+const store={get(k){try{return localStorage.getItem(k)}catch(e){return null}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
+
+function init(){
+  const names=Object.keys(DATA.projects);
+  $("#projTabs").innerHTML=names.map(n=>`<button data-p="${esc(n)}">${esc(n)}</button>`).join("");
+  $("#projTabs").onclick=e=>{const b=e.target.closest("button");if(b)load(b.dataset.p)};
+  $("#legend").innerHTML=Object.entries(EDGE).map(([k,[c,l,d]])=>`<span><i class="${d?"dash":""}" style="--c:var(${c})"></i>${l}</span>`).join("")+
+    STATUS.map(s=>`<span><span class="dot ${s}" style="--c:var(--${s})"></span>${s}</span>`).join("")+`<span>size = importance · <b style="color:var(--paused)">●</b> open questions</span>`;
+  $("#vMap").onclick=()=>setView("map"); $("#vAgent").onclick=()=>setView("agent");
+  $("#q").oninput=()=>search($("#q").value);
+  $("#drawerClose").onclick=()=>$("#drawer").hidden=true;
+  $("#drawer").onclick=e=>{if(e.target.id==="drawer")$("#drawer").hidden=true};
+  document.addEventListener("keydown",e=>{if(e.key==="Escape")$("#drawer").hidden=true});
+  $("#zin").onclick=()=>zoomBy(1.25); $("#zout").onclick=()=>zoomBy(.8); $("#zfit").onclick=fit;
+  panZoom();
+  const last=store.get("atlas.project"), want=new URLSearchParams(location.search).get("project"); load(names.includes(want)?want:names.includes(last)?last:names[0]);
+}
+function setView(v){$("#mapView").hidden=v!=="map";$("#agentView").hidden=v!=="agent";$("#vMap").setAttribute("aria-pressed",v==="map");$("#vAgent").setAttribute("aria-pressed",v==="agent");if(v==="map")fit()}
+
+function load(name){
+  store.set("atlas.project",name); CUR=name; P=DATA.projects[name]; G=P.graph; byId={}; G.nodes.forEach(n=>byId[n.id]=n); sel=null;
+  document.querySelectorAll("#projTabs button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.p===name));
+  const open=G.nodes.reduce((a,n)=>a+(n.open_questions||[]).length,0), msgs=Object.values(P.logs).reduce((a,l)=>a+l.length,0);
+  $("#stats").innerHTML=`<span>${G.nodes.length} nodes</span><span>${(G.rules||[]).filter(r=>r.status!=="superseded").length} rules</span><span>${open} open questions</span><span>${msgs} messages in raw log</span>`;
+  $("#built").textContent=`built ${G.built||"?"}`;
+  $("#render").textContent=P.render; $("#renderSize").textContent=`${P.render.length.toLocaleString()} chars ≈ ${Math.round(P.render.length/4).toLocaleString()} tokens`;
+  layout(); drawTree(); drawGraph(); showRules(); $("#q").value=""; fit();
+}
+
+/* ---------- hierarchy ---------- */
+function hierarchy(){
+  const kids={}, parent={};
+  G.edges.filter(e=>e.type==="contains").forEach(e=>{(kids[e.src]=kids[e.src]||[]).push(e.dst); if(!(e.dst in parent))parent[e.dst]=e.src});
+  const roots=G.nodes.filter(n=>!(n.id in parent)).map(n=>n.id);
+  return {kids,roots};
+}
+const R=n=>n.type==="project"?24:Math.round(9+13*Math.max(0,Math.min(1,+n.weight||0.3)));
+function layout(){
+  // radial tree seed (root in the middle, depth = ring), then a short deterministic force pass
+  const {kids,roots}=hierarchy(); pos={}; const seen=new Set(), depth={}; let leaf=0; const leaves={};
+  const walk=(id,d)=>{if(seen.has(id)||!byId[id])return; seen.add(id); depth[id]=d; const ch=(kids[id]||[]).filter(c=>!seen.has(c));
+    if(!ch.length){leaves[id]=leaf++;return} ch.forEach(c=>walk(c,d+1)); const ls=ch.map(c=>leaves[c]).filter(x=>x!=null); leaves[id]=ls.length?(Math.min(...ls)+Math.max(...ls))/2:leaf++};
+  roots.forEach(r=>walk(r,roots.length>1?1:0)); G.nodes.forEach(n=>{if(!seen.has(n.id))walk(n.id,1)});
+  const N=Math.max(leaf,1), ring=150;
+  G.nodes.forEach(n=>{const d=depth[n.id]||0, ang=(leaves[n.id]/N)*Math.PI*2-Math.PI/2; pos[n.id]={x:Math.cos(ang)*d*ring, y:Math.sin(ang)*d*ring, d}});
+  const ids=G.nodes.map(n=>n.id), E=G.edges.filter(e=>pos[e.src]&&pos[e.dst]);
+  for(let it=0;it<320;it++){
+    const f={}; ids.forEach(i=>f[i]={x:0,y:0}); const cool=1-it/320;
+    for(let i=0;i<ids.length;i++)for(let j=i+1;j<ids.length;j++){const A=pos[ids[i]],B=pos[ids[j]];let dx=A.x-B.x,dy=A.y-B.y,d2=dx*dx+dy*dy+0.01,d=Math.sqrt(d2);
+      const min=R(byId[ids[i]])+R(byId[ids[j]])+70, k=d<min?(min-d)*.6:2600/d2; f[ids[i]].x+=dx/d*k; f[ids[i]].y+=dy/d*k; f[ids[j]].x-=dx/d*k; f[ids[j]].y-=dy/d*k}
+    E.forEach(e=>{const A=pos[e.src],B=pos[e.dst],dx=B.x-A.x,dy=B.y-A.y,d=Math.hypot(dx,dy)||1,L=e.type==="contains"?ring*.95:ring*1.6,s=e.type==="contains"?.05:.012,k=(d-L)*s;
+      f[e.src].x+=dx/d*k; f[e.src].y+=dy/d*k; f[e.dst].x-=dx/d*k; f[e.dst].y-=dy/d*k});
+    ids.forEach(i=>{const p=pos[i], r=Math.hypot(p.x,p.y)||1, want=p.d*ring, k=(want-r)*.04; f[i].x+=p.x/r*k; f[i].y+=p.y/r*k;
+      if(p.d===0){f[i].x-=p.x*.2;f[i].y-=p.y*.2}
+      const m=Math.min(18,Math.hypot(f[i].x,f[i].y))*cool, fl=Math.hypot(f[i].x,f[i].y)||1; p.x+=f[i].x/fl*m; p.y+=f[i].y/fl*m});
+  }
+}
+
+/* ---------- outline ---------- */
+function drawTree(){
+  const {kids,roots}=hierarchy(), seen=new Set();
+  const li=id=>{ if(seen.has(id)||!byId[id])return""; seen.add(id); const n=byId[id], oq=(n.open_questions||[]).length;
+    const ch=(kids[id]||[]).map(li).join("");
+    return `<li><div class="row" data-id="${esc(id)}" role="treeitem" tabindex="0" aria-selected="false"><span class="dot ${esc(n.status)}" style="--c:var(--${esc(n.status)||"reference"})"></span><span class="id">${esc(id)}</span><span class="t">${esc(n.title)}</span>${oq?`<span class="oq" title="open questions">${oq}</span>`:""}</div>${ch?`<ul>${ch}</ul>`:""}</li>`;};
+  $("#tree").innerHTML=roots.map(li).join("")+G.nodes.filter(n=>!seen.has(n.id)).map(n=>li(n.id)).join("");
+  $("#tree").onclick=e=>{const r=e.target.closest(".row");if(r)select(r.dataset.id,true)};
+  $("#tree").onkeydown=e=>{if(e.key==="Enter"){const r=e.target.closest(".row");if(r)select(r.dataset.id,true)}};
+}
+
+/* ---------- graph ---------- */
+function drawGraph(){
+  const svg=$("#svg");
+  const defs=Object.entries(EDGE).map(([k,[c]])=>`<marker id="ar-${k}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="${css(c)}"/></marker>`).join("");
+  let s=`<defs>${defs}</defs><g id="vp"><g id="edges"></g><g id="nodes">`;
+  G.nodes.forEach(n=>{const p=pos[n.id]; if(!p)return; const st=STATUS.includes(n.status)?n.status:"reference", c=css("--"+st), r=R(n), oq=(n.open_questions||[]).length;
+    const fill=st==="paused"?css("--surface"):c, ring=st==="paused"?`stroke="${c}" style="stroke-width:3"`:st==="reference"?`stroke="${c}" style="stroke-dasharray:3 2;stroke-width:2"`:"";
+    const label=n.title.length>26?n.title.slice(0,25)+"…":n.title;
+    s+=`<g class="node${p.d<=1?" top":""}" data-id="${esc(n.id)}" transform="translate(${p.x},${p.y})" tabindex="0"><title>${esc(n.title)} — ${esc(n.summary)}</title>
+      <circle class="halo" r="${r+5}"/><circle class="core" r="${r}" fill="${fill}" ${ring}/>
+      ${r>=14?`<text class="nid${st==="paused"?" out":""}" text-anchor="middle" dy="3.5">${esc(n.id)}</text>`:""}
+      ${oq?`<circle class="badge" cx="${r*.72}" cy="${-r*.72}" r="7"/><text class="badgeT" x="${r*.72}" y="${-r*.72+3}" text-anchor="middle">${oq}</text>`:""}
+      <text class="lbl" text-anchor="middle" y="${r+15}">${esc(label)}</text></g>`;});
+  svg.innerHTML=s+"</g></g>"; drawEdges();
+  svg.querySelectorAll(".node").forEach(g=>{g.onkeydown=e=>{if(e.key==="Enter")select(g.dataset.id)}});
+  applyView(); if(sel)select(sel);
+}
+function drawEdges(){
+  let s="";
+  G.edges.forEach(e=>{const a=pos[e.src],b=pos[e.dst]; if(!a||!b)return; const ra=R(byId[e.src]),rb=R(byId[e.dst]);
+    const dx=b.x-a.x,dy=b.y-a.y,d=Math.hypot(dx,dy)||1,ux=dx/d,uy=dy/d;
+    if(e.type==="contains"){s+=`<line class="tree-edge" data-s="${esc(e.src)}" data-d="${esc(e.dst)}" x1="${a.x+ux*ra}" y1="${a.y+uy*ra}" x2="${b.x-ux*rb}" y2="${b.y-uy*rb}"/>`;return}
+    const t=EDGE[e.type]||EDGE.related, bend=Math.min(90,d*.28), mx=(a.x+b.x)/2-uy*bend, my=(a.y+b.y)/2+ux*bend;
+    const sx=a.x+(mx-a.x)/Math.hypot(mx-a.x,my-a.y)*ra, sy=a.y+(my-a.y)/Math.hypot(mx-a.x,my-a.y)*ra;
+    const q=Math.hypot(b.x-mx,b.y-my)||1, ex=b.x-(b.x-mx)/q*(rb+3), ey=b.y-(b.y-my)/q*(rb+3);
+    s+=`<path class="link" data-s="${esc(e.src)}" data-d="${esc(e.dst)}" stroke="${css(t[0])}" ${t[2]?'stroke-dasharray="5 4"':""} marker-end="url(#ar-${esc(e.type in EDGE?e.type:"related")})" d="M${sx},${sy} Q${mx},${my} ${ex},${ey}"><title>${esc(e.src)} ${esc(t[1])} ${esc(e.dst)}${e.note?" — "+esc(e.note):""}</title></path>`;});
+  $("#edges").innerHTML=s;
+  if(sel){const id=sel;document.querySelectorAll(".link,.tree-edge").forEach(l=>l.classList.toggle("dim",l.dataset.s!==id&&l.dataset.d!==id))}
+}
+function panZoom(){
+  const svg=$("#svg"); let drag=null, nodeDrag=null;
+  svg.addEventListener("wheel",e=>{e.preventDefault();const r=svg.getBoundingClientRect();zoomAt(e.deltaY<0?1.12:.89,e.clientX-r.left,e.clientY-r.top)},{passive:false});
+  svg.addEventListener("pointerdown",e=>{const g=e.target.closest(".node");
+    if(g){nodeDrag={id:g.dataset.id,x:e.clientX,y:e.clientY,px:pos[g.dataset.id].x,py:pos[g.dataset.id].y,moved:false,g}}
+    else drag={x:e.clientX,y:e.clientY,vx:view.x,vy:view.y};
+    svg.setPointerCapture(e.pointerId);svg.classList.add("drag")});
+  svg.addEventListener("pointermove",e=>{
+    if(nodeDrag){const dx=(e.clientX-nodeDrag.x)/view.k,dy=(e.clientY-nodeDrag.y)/view.k; if(Math.hypot(dx,dy)>3)nodeDrag.moved=true;
+      if(nodeDrag.moved){const p=pos[nodeDrag.id];p.x=nodeDrag.px+dx;p.y=nodeDrag.py+dy;nodeDrag.g.setAttribute("transform",`translate(${p.x},${p.y})`);drawEdges()}return}
+    if(!drag)return;view.touched=1;view.x=drag.vx+(e.clientX-drag.x);view.y=drag.vy+(e.clientY-drag.y);applyView()});
+  svg.addEventListener("pointerup",()=>{if(nodeDrag&&!nodeDrag.moved)select(nodeDrag.id);drag=null;nodeDrag=null;svg.classList.remove("drag")});
+  new ResizeObserver(()=>{if(!view.touched)fit()}).observe(svg);
+}
+function applyView(){const vp=$("#vp");if(vp)vp.setAttribute("transform",`translate(${view.x},${view.y}) scale(${view.k})`);const c=document.querySelector(".canvas");if(c)c.classList.toggle("far",view.k<.55)}
+function zoomAt(f,cx,cy){view.touched=1;const k=Math.max(.25,Math.min(3,view.k*f));view.x=cx-(cx-view.x)*(k/view.k);view.y=cy-(cy-view.y)*(k/view.k);view.k=k;applyView()}
+function zoomBy(f){const r=$("#svg").getBoundingClientRect();zoomAt(f,r.width/2,r.height/2)}
+function fit(){const svg=$("#svg"),vp=$("#vp");if(!vp)return;const r=svg.getBoundingClientRect();if(!r.width)return;
+  const b=vp.getBBox?vp.getBBox():null;if(!b||!b.width)return;const pad=24, legendH=70;
+  const k=Math.min((r.width-2*pad)/b.width,(r.height-pad-legendH)/b.height,1.4);view={k,x:pad-b.x*k+(r.width-2*pad-b.width*k)/2,y:pad-b.y*k+(r.height-pad-legendH-b.height*k)/2};applyView()}
+function centerOn(id){const p=pos[id],r=$("#svg").getBoundingClientRect();if(!p||!r.width)return;view.touched=1;view.x=r.width/2-p.x*view.k;view.y=r.height/2-p.y*view.k;applyView()}
+
+/* ---------- selection & search ---------- */
+function select(id,center){
+  sel=id; const n=byId[id]; if(!n)return;
+  const nb=new Set([id]); G.edges.forEach(e=>{if(e.src===id)nb.add(e.dst);if(e.dst===id)nb.add(e.src)});
+  document.querySelectorAll(".node").forEach(g=>{g.classList.toggle("sel",g.dataset.id===id);g.classList.toggle("dim",!nb.has(g.dataset.id))});
+  document.querySelectorAll(".link,.tree-edge").forEach(l=>l.classList.toggle("dim",l.dataset.s!==id&&l.dataset.d!==id));
+  document.querySelectorAll(".row").forEach(r=>r.setAttribute("aria-selected",r.dataset.id===id));
+  if(center)centerOn(id); dossier(n);
+}
+function clearSel(){sel=null;document.querySelectorAll(".node,.link,.tree-edge").forEach(x=>x.classList.remove("dim","sel"));document.querySelectorAll(".row").forEach(r=>r.setAttribute("aria-selected","false"));showRules()}
+function search(q){
+  q=q.trim().toLowerCase(); const words=q.split(/\s+/).filter(w=>w.length>1);
+  const hit=id=>{const n=byId[id];const hay=[n.title,n.summary,(n.aliases||[]).join(" "),...["decisions","requirements","open_questions"].flatMap(k=>(n[k]||[]).map(x=>x.text||"")),...(n.rejected||[]).map(x=>x.option||"")].join(" ").toLowerCase();return words.every(w=>hay.includes(w))};
+  document.querySelectorAll(".node").forEach(g=>{g.classList.toggle("hit",!!words.length&&hit(g.dataset.id));g.classList.toggle("dim",!!words.length&&!hit(g.dataset.id))});
+  document.querySelectorAll(".row").forEach(r=>r.classList.toggle("dim",!!words.length&&!hit(r.dataset.id)));
+  document.querySelectorAll(".link").forEach(l=>l.classList.toggle("dim",!!words.length));
+  if(!words.length&&sel)select(sel);
+}
+
+/* ---------- dossier ---------- */
+const spanBtns=sp=>(sp||[]).map(s=>`<button class="spanbtn" data-span="${esc(s)}" title="Open the verbatim conversation">${esc(shortSpan(s))}</button>`).join("");
+function shortSpan(s){const [f,r]=s.split("#");return (f.replace(/\.md$/,"").replace(/^.*\//,"").slice(0,18))+(r?"#"+r:"")}
+function showRules(){
+  $("#dossierTitle").textContent="Rules — always in context";
+  const rs=G.rules||[];
+  $("#dossier").innerHTML=`<p class="summary" style="color:var(--muted)">These are pinned into every session, so the agent applies them without having to remember to look. Select a node on the map to see its dossier.</p>
+  <div class="rules">${rs.map(r=>`<div class="rule ${r.status==="superseded"?"superseded":""}"><span class="rid">${esc(r.id)}</span><span>${esc(r.text)}</span>
+   <span class="meta">${esc(r.scope||"project")} · since ${esc((r.stated||"?").slice(0,10))}${r.playbook?` · playbook <a data-go="${esc(r.playbook)}" style="cursor:pointer;text-decoration:underline">${esc(r.playbook)}</a>`:""}${r.supersedes?` · replaces ${esc(r.supersedes)}`:""}${r.status==="superseded"?` · replaced${r.superseded_by?" by "+esc(r.superseded_by):""} ${esc((r.superseded_at||"").slice(0,10))}`:""}</span>
+   <span class="meta">${spanBtns(r.spans)}</span></div>`).join("")||'<p class="empty">No rules yet.</p>'}</div>`;
+  bindSpans();
+}
+function dossier(n){
+  $("#dossierTitle").innerHTML=`<span>Dossier</span><button class="spanbtn" id="backRules">Rules</button>`; $("#backRules").onclick=clearSel;
+  const st=STATUS.includes(n.status)?n.status:"reference";
+  const item=(x,body)=>{const s=x&&x.superseded_by;return `<div class="${s?"old":""}">${body}${s?` <span class="why">· superseded ${esc((x.superseded_at||"").slice(0,10))}${x.superseded_reason?" — "+esc(x.superseded_reason):""}</span>`:""}</div><div>${spanBtns(x.spans)}</div>`};
+  const list=(title,items,fn,c)=>{items=(items||[]).slice().sort((a,b)=>!!a.superseded_by-!!b.superseded_by);
+    return items.length?`<div class="sec"><h4>${title}</h4><ul>${items.map(x=>`<li style="--c:${x.superseded_by?"var(--line)":c}">${item(x,fn(x))}</li>`).join("")}</ul></div>`:""};
+  const edges=G.edges.filter(e=>e.type!=="contains"&&(e.src===n.id||e.dst===n.id));
+  const parent=G.edges.find(e=>e.type==="contains"&&e.dst===n.id);
+  const others=G.nodes.filter(m=>m.id!==n.id);
+  $("#dossier").innerHTML=`
+   <div class="eyebrow"><span class="chip" style="--c:var(--${st})">${esc(n.status)}</span><span>${esc(n.id)} · ${esc(n.type)}</span><span>${n._msgs??"?"} msgs · ${n._sub??0} sub-nodes</span>${n.pinned?'<span title="Edited by you; the background pass won\'t change it">pinned</span>':""}</div>
+   <h3>${esc(n.title)}</h3><p class="summary">${esc(n.summary)}</p>
+   ${n.aliases&&n.aliases.length?`<div class="sec"><h4>Also called</h4><div class="aka">${n.aliases.map(a=>`<span>${esc(a)}</span>`).join("")}</div></div>`:""}
+   ${list(n.type==="playbook"?"Steps":"Requirements",n.requirements,x=>esc(x.text||x),"var(--accent)")}
+   ${list("Decided",n.decisions,x=>`${esc(x.text)}${x.quote?`<q>${esc(x.quote)}</q>`:""}`,"var(--resolved)")}
+   ${list("Rejected",n.rejected,x=>`${esc(x.text||x.option)}${x.why?` <span class="why">— ${esc(x.why)}</span>`:""}`,"var(--e-sup)")}
+   ${list("Open",n.open_questions,x=>esc(x.text||x),"var(--paused)")}
+   ${(n.merged||[]).length?`<div class="sec"><h4>Absorbed</h4><ul>${n.merged.map(m=>`<li style="--c:var(--line)">${esc(m.title)} <span class="why">(${esc(m.id)}, ${esc((m.at||"").slice(0,10))})</span></li>`).join("")}</ul></div>`:""}
+   ${parent||edges.length?`<div class="sec edges"><h4>Connections</h4><ul>${parent?`<li style="--c:var(--line)">part of <a data-go="${esc(parent.src)}">${esc(byId[parent.src]?.title||parent.src)}</a></li>`:""}${edges.map(e=>{const t=EDGE[e.type]||EDGE.related, out=e.src===n.id, o=out?e.dst:e.src;
+      return `<li style="--c:var(${t[0]})">${out?esc(t[1]):"← "+esc(t[1])} <a data-go="${esc(o)}">${esc(byId[o]?.title||o)}</a>${e.note?` <span class="why">(${esc(e.note)})</span>`:""}</li>`}).join("")}</ul></div>`:""}
+   <div class="sec"><h4>Where it lives in the raw log</h4><div>${spanBtns(n.spans)||'<span class="why">no spans</span>'}</div></div>
+   ${LIVE?`<div class="sec editbox"><h4>Edit</h4>
+     <div class="erow"><label for="eStatus">Status</label><select id="eStatus">${STATUS.map(s=>`<option ${s===n.status?"selected":""}>${s}</option>`).join("")}</select><button data-act="status">Set</button></div>
+     <div class="erow"><label for="eTitle">Title</label><input id="eTitle" value="${esc(n.title)}"><button data-act="title">Rename</button></div>
+     <div class="erow"><label for="eMerge">Merge into</label><select id="eMerge"><option value="">choose…</option>${others.map(m=>`<option value="${esc(m.id)}">${esc(m.id)} · ${esc(m.title)}</option>`).join("")}</select><button data-act="merge">Merge</button></div>
+     <div class="erow"><label for="eMove">Move under</label><select id="eMove">${others.map(m=>`<option value="${esc(m.id)}" ${parent&&parent.src===m.id?"selected":""}>${esc(m.id)} · ${esc(m.title)}</option>`).join("")}</select><button data-act="move">Move</button></div>
+     <p class="why" id="eMsg">Edits are saved as your own events and pinned.</p></div>`:""}`;
+  document.querySelectorAll("[data-go]").forEach(a=>a.onclick=()=>select(a.dataset.go,true)); bindSpans();
+  document.querySelectorAll("[data-act]").forEach(b=>b.onclick=()=>{
+    const act=b.dataset.act; let op=null;
+    if(act==="status")op={op:"node.update",id:n.id,status:$("#eStatus").value};
+    if(act==="title"){const v=$("#eTitle").value.trim();if(v)op={op:"node.update",id:n.id,title:v}}
+    if(act==="merge"){const v=$("#eMerge").value;if(v)op={op:"node.merge",from:n.id,into:v}}
+    if(act==="move")op={op:"node.move",id:n.id,parent:$("#eMove").value};
+    if(op)sendOp(op,act==="merge"?op.into:n.id);
+  });
+}
+async function sendOp(op,focusId){
+  const msg=$("#eMsg"); msg.textContent="Saving…";
+  try{const r=await fetch("api/op",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({project:CUR,op})});
+    const txt=await r.text(); if(!r.ok)throw new Error(txt);
+    const d=await (await fetch("api/data")).json(); DATA=d; load(CUR); select(focusId,true);
+  }catch(e){msg.textContent="Couldn't save: "+e.message}
+}
+function bindSpans(){document.querySelectorAll("[data-span]").forEach(b=>b.onclick=()=>openSpan(b.dataset.span));document.querySelectorAll("#dossier [data-go]").forEach(a=>a.onclick=()=>select(a.dataset.go,true))}
+function openSpan(span){
+  const [f,r]=span.split("#"), log=P.logs[f]||Object.values(DATA.projects).map(x=>x.logs[f]).find(Boolean)||[]; let msgs=log;
+  if(r){const [a,b]=r.split("-"),n=s=>+s.slice(1),lo=n(a),hi=n(b||a);msgs=log.filter(m=>n(m[0])>=lo&&n(m[0])<=hi)}
+  $("#drawerTitle").textContent=span;
+  $("#msgs").innerHTML=msgs.length?msgs.map(([id,role,text])=>`<article class="msg ${esc(role)}"><div class="h"><b>${esc(role)}</b><span>${esc(f)}#${esc(id)}</span></div><div class="body">${esc(text)}</div></article>`).join(""):`<p class="empty">That span isn't in the bundled raw log.</p>`;
+  $("#drawer").hidden=false; $("#drawerClose").focus();
+}
+if(DATA)init();
+else fetch("api/data").then(r=>{if(!r.ok)throw new Error(r.status);return r.json()}).then(d=>{DATA=d;LIVE=true;init()})
+  .catch(()=>{document.body.innerHTML='<p class="empty">No map data. Start the local server with <code>python3 remember/serve.py</code>, or build a static page with <code>python3 remember/viz.py atlas.html</code>.</p>'});
+</script>

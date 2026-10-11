@@ -1,0 +1,47 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/remember/cli.py\" hook || python \"${CLAUDE_PLUGIN_ROOT}/remember/cli.py\" hook",
+            "timeout": 20
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/remember/cli.py\" hook || python \"${CLAUDE_PLUGIN_ROOT}/remember/cli.py\" hook",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/remember/cli.py\" hook || python \"${CLAUDE_PLUGIN_ROOT}/remember/cli.py\" hook",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/remember/cli.py\" hook || python \"${CLAUDE_PLUGIN_ROOT}/remember/cli.py\" hook"
+          }
+        ]
+      }
+    ]
+  }
+}

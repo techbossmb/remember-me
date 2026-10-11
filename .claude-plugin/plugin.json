@@ -1,0 +1,9 @@
+{
+  "name": "remember-me",
+  "displayName": "remember.me",
+  "version": "0.1.0",
+  "description": "Long-term memory that survives compaction: a verbatim log of your conversations plus a map of them, in plain files any assistant can use.",
+  "author": { "name": "remember.me" },
+  "license": "MIT",
+  "keywords": ["memory", "compaction", "context", "mcp"]
+}

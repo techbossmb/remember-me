@@ -1,0 +1,6 @@
+{
+  "name": "remember-me",
+  "owner": { "name": "remember.me" },
+  "description": "remember.me: long-term memory for AI agents",
+  "plugins": [ { "name": "remember-me", "source": ".", "description": "Verbatim conversation log + a map of it, in plain files any assistant can use." } ]
+}
