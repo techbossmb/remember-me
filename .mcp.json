@@ -1,1 +1,8 @@
-{ "mcpServers": { "remember": { "command": "python3", "args": ["${CLAUDE_PLUGIN_ROOT}/remember/cli.py", "mcp"] } } }
+{
+  "mcpServers": {
+    "remember": {
+      "command": "sh",
+      "args": ["-c", "r=\"${CLAUDE_PLUGIN_ROOT}\"; [ -f \"$r/remember/cli.py\" ] || r=$(dirname \"$(dirname \"$(find \"$HOME/.claude/plugins\" -path '*remember-me/remember/cli.py' 2>/dev/null | head -n 1)\")\"); exec $(command -v python3 || command -v python) \"$r/remember/cli.py\" mcp"]
+    }
+  }
+}
