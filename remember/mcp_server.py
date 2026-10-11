@@ -7,6 +7,7 @@ working directory (most clients start servers in the workspace folder).
 import contextlib
 import io
 import json
+import os
 import sys
 
 import cli
@@ -18,6 +19,7 @@ S = {"type": "string"}
 PROJECT = {"project": {"type": "string", "description": "project name; default: the current folder's project"}}
 
 TOOLS = [
+    ("remember_guide", "How to use remember.me: read this first if you haven't been told how to use the remember tools.", {}, []),
     ("remember_status", "What is stored for this project, how much is mapped, and what is not mapped yet.", {}, []),
     ("remember_overview", "The project's memory map: every thread with status and summary, standing rules, open items. "
      "Read it at the start of work; then open the threads that matter with remember_zoom.",
@@ -30,13 +32,24 @@ TOOLS = [
     ("remember_grep", "Search the raw log (regex, case-insensitive), optionally within a time window.",
      {"pattern": S, "from": S, "to": S}, ["pattern"]),
     ("remember_window", "Everything said between two times (ISO dates or datetimes).", {"from": S, "to": S}, ["from"]),
-    ("remember_log", "Add conversation messages to the raw log, e.g. to start memory from what is in your context. "
-     "Use source='recalled' when writing from context rather than copying a transcript; include ISO timestamps if known.",
+    ("remember_log", "Save conversation messages to the project's memory: to start memory from what is in your "
+     "context, and again at natural pauses so the conversation is kept. Safe to repeat: messages already saved are "
+     "skipped. User messages verbatim; source='recalled' when writing from context; ISO timestamps if known.",
      {"session": S, "source": S, "note": S,
       "messages": {"type": "array", "items": {"type": "object", "properties": {"role": {"type": "string", "enum": ["user", "assistant", "summary"]}, "text": S, "ts": S}, "required": ["role", "text"]}}},
      ["messages"]),
     ("remember_show_map", "Start (or reuse) the local memory map viewer and return its link for the user to click. "
      "Use when the user asks to see their memory or map.", {}, []),
+    ("remember_projects", "List the projects that have memory. Each tool takes `project`; use the name of what the "
+     "user is working on (ask once if unclear).", {}, []),
+    ("remember_viewer", "Manage the local map viewer: start, stop (finds it wherever it was started), restart, status, "
+     "autostart_on / autostart_off (start it when the user logs in).",
+     {"action": {"type": "string", "enum": ["start", "stop", "restart", "status", "autostart_on", "autostart_off"]}}, ["action"]),
+    ("remember_import", "Import past conversations from a claude.ai data export (zip or folder on the user's computer). "
+     "Without picks it lists the conversations; picks are numbers, uuid prefixes or name substrings, or 'all'.",
+     {"path": S, "picks": {"type": "array", "items": S}}, ["path"]),
+    ("remember_ingest_sessions", "Bring in Claude Code session files already on the user's computer for a folder "
+     "(only useful where Claude Code has been used).", {"folder": S}, []),
     ("remember_builder_prompt", "Instructions for building or updating the map from the raw log (chunk by chunk).", {}, []),
     ("remember_chunks", "List replay chunks for the builder; new_only lists only what is not mapped yet.",
      {"new_only": {"type": "boolean"}}, []),
@@ -93,6 +106,26 @@ def call(store, name, args):
         return cli.log_messages(store, p, args.get("session") or "recalled", msgs, args.get("source") or "recalled", args.get("note"))
     if name == "remember_show_map":
         return _run(["show"] + pj)
+    if name == "remember_projects":
+        ps = cli.list_projects(store)
+        return ("projects with memory: " + ", ".join(ps)) if ps else "no projects have memory yet"
+    if name == "remember_viewer":
+        act = args["action"]
+        sub = {"autostart_on": ["autostart", "on"], "autostart_off": ["autostart", "off"]}.get(act, [act])
+        return _run(["viewer"] + sub)
+    if name == "remember_import":
+        argv = ["import", args["path"]] + pj
+        for p in args.get("picks") or []:
+            argv += ["--pick", p]
+        return _run(argv + ([] if args.get("picks") else ["--list"]))
+    if name == "remember_ingest_sessions":
+        folder = args.get("folder") or os.getcwd()
+        files = cli.claude_code_sessions(folder)
+        if not files:
+            return f"no Claude Code session files on this computer for {folder}"
+        return cli.ingest_claude_code(store, cli.resolve_project(store, args.get("project"), cwd=folder), files)
+    if name == "remember_guide":
+        return open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "guide.md"), encoding="utf-8").read()
     if name == "remember_builder_prompt":
         return _run(["builder-prompt"])
     if name == "remember_chunks":
@@ -130,7 +163,7 @@ def serve(store):
                 res = {"protocolVersion": params.get("protocolVersion") or PROTOCOL,
                        "capabilities": {"tools": {}},
                        "serverInfo": {"name": "remember-me", "version": "0.1.0"},
-                       "instructions": cli.SNIPPET.format(cmd="remember").replace("`remember overview`", "remember_overview")}
+                       "instructions": open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "guide.md"), encoding="utf-8").read()}
             elif method == "ping":
                 res = {}
             elif method == "tools/list":

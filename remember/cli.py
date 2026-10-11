@@ -105,6 +105,15 @@ def resolve_project(store, explicit=None, cwd=None):
     return slug(os.path.basename(cwd))
 
 
+def list_projects(store):
+    names = set()
+    for sub in ("log", "maps"):
+        d = os.path.join(store, sub)
+        if os.path.isdir(d):
+            names |= {n for n in os.listdir(d) if os.path.isdir(os.path.join(d, n))}
+    return sorted(names)
+
+
 def enabled(store, project):
     return os.path.isdir(os.path.join(store, "log", project)) or os.path.isdir(os.path.join(store, "maps", project))
 
@@ -242,15 +251,30 @@ def log_messages(store, project, session, msgs, source="recalled", note=None):
     out_dir = os.path.join(store, "log", project)
     session = slug(session)
     stamp = time.strftime("%Y%m%d%H%M%S", time.gmtime())
-    entries = [(f"{source}:{session}:{stamp}:{i}", "msg", r, ts, t) for i, (r, ts, t) in enumerate(msgs)]
-    new = capture.append_log(entries, out_dir, session)
+    # Saving the same conversation twice (an assistant saving at each pause, or a hook that already captured it)
+    # must not duplicate it: skip messages whose text the project's log already holds for that speaker.
+    norm = lambda s: " ".join((s or "").split())
+    have = set()
+    if os.path.isdir(out_dir):
+        refresh_sources(store, project)
+        have = {(r[3], norm(r[4])) for r in memmap.timeline(store, project)}
+    fresh = [(r, ts, t) for r, ts, t in msgs
+             if (r, norm(t)) not in have and not any(norm(t) in b for rr, b in have if rr == r and len(norm(t)) > 40)]
+    skipped = len(msgs) - len(fresh)
+    import hashlib
+    entries = [(f"{source}:{session}:{stamp}:{i}:" + hashlib.sha1(f"{r}\n{t}".encode("utf-8")).hexdigest()[:12],
+                "msg", r, ts, t) for i, (r, ts, t) in enumerate(fresh)]
+    os.makedirs(out_dir, exist_ok=True)
+    with open(os.path.join(out_dir, ".lock"), "a+", encoding="utf-8") as lk:
+        memmap._lock(lk)
+        new = capture.append_log(entries, out_dir, session)
     meta = {"source": source, "logged_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
     if note:
         meta["note"] = note
     with open(os.path.join(out_dir, f"{session}.meta.json"), "w", encoding="utf-8") as f:
         json.dump(meta, f)
     refresh_sources(store, project)
-    return f"{session}: +{new} messages ({source})"
+    return f"{session}: +{new} messages ({source})" + (f", {skipped} already saved" if skipped else "")
 
 
 # ---------------------------------------------------------------- import: claude.ai data export, selectively
@@ -429,21 +453,18 @@ def show_map(store, project, open_browser=False):
 # ---------------------------------------------------------------- Claude Code hook
 
 SNIPPET = """## Long-term memory (remember.me)
-This project keeps its conversation history and a map of it in plain files (`~/.remember`), readable by any assistant.
-- At the start of work, read the map: `{cmd} overview` (or the MCP tool `remember_overview`). It lists every thread,
-  the standing rules and open items. Follow the rules.
-- To answer from history, pick the threads that matter by meaning and open them together:
-  `{cmd} zoom T4 T13 --q "<the question>"`. Verbatim text: `{cmd} spans <file#mA-mB>`. Search: `{cmd} grep <regex>`.
-  The log is the record; if it disagrees with the map, the log wins.
-- `{cmd} status` says what isn't mapped yet. To map it, follow `{cmd} builder-prompt`.
-- If this project has no memory yet, offer to start it from what is already available (`{cmd} status` says what).
+This project keeps its conversations and a map of them in plain files on this computer (`~/.remember`).
+Use the remember_* tools (MCP server: `python3 <remember.me folder>/remember/cli.py mcp`) and follow `remember_guide`:
+read `remember_overview` at the start of work, open threads with `remember_zoom`, save new turns with `remember_log`
+at natural pauses, and keep the map current when `remember_status` says messages aren't mapped yet.
+Without the tools, the same commands exist as `{cmd} <command>` (`{cmd} --help`).
 """
 
 
 UPDATE_NOTE = ("remember.me: {n} messages aren't in the memory map yet. After you finish what the user is asking, "
                "update it without involving the user: hand it to a sub-agent so the work stays out of this conversation "
-               "(in Claude Code, the remember-me:builder agent, with the project name '{p}'); if you can't start "
-               "sub-agents, follow `remember builder-prompt` for the new chunks only. No need to mention it unless asked.")
+               "(in Claude Code or Cowork, the remember-me:builder agent, with the project name '{p}'); if you can't start "
+               "sub-agents, follow remember_builder_prompt for the new chunks only. No need to mention it unless asked.")
 
 
 def session_update_note(store, project, n, reason):
@@ -485,7 +506,7 @@ def hook(store):
                 state = f"remember.me: {note}; the map below may lag the last few messages (the raw log is complete)."
             else:
                 state = session_update_note(store, project, n, "SessionStart") or \
-                    "remember.me memory for this project (CLI: remember; skill: remember)."
+                    "remember.me memory for this project; use the remember_* tools (remember_guide)."
             ctx = state + "\n\n" + ov
         else:
             n = len(claude_code_sessions(cwd))
