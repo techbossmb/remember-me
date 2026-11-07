@@ -87,7 +87,22 @@ def _save_registry(store, reg):
         json.dump(reg, f, indent=1)
 
 
+class NoProject(Exception):
+    pass
+
+
+def _meaningless_folder(d):
+    """Folders whose name says nothing about the work: the filesystem root, the home folder, and where tools live.
+    Apps like the Claude desktop app start the server in one of these, so the folder can't name the project."""
+    home = os.path.abspath(os.path.expanduser("~"))
+    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    return (d == os.path.dirname(d) or d == home or d.startswith(here)
+            or os.sep + ".claude" + os.sep in d + os.sep or d in ("/tmp", "/private/tmp"))
+
+
 def resolve_project(store, explicit=None, cwd=None):
+    """The project to use: named explicitly, set in REMEMBER_PROJECT, or the folder the work is in.
+    Raises NoProject rather than guess when the folder can't say (never a silent 'default')."""
     if explicit:
         return slug(explicit)
     if os.environ.get("REMEMBER_PROJECT"):
@@ -102,6 +117,12 @@ def resolve_project(store, explicit=None, cwd=None):
         if nd == d:
             break
         d = nd
+    if _meaningless_folder(cwd) or slug(os.path.basename(cwd)) == "default":
+        ps = list_projects(store)
+        have = ("Projects with memory: " + ", ".join(ps) + ". ") if ps else "No project has memory yet. "
+        raise NoProject("Which project? This app doesn't say which folder or project you're in, so pass `project`: "
+                        "the name of what the user is working on. " + have +
+                        "Reuse an existing name when it's the same work; ask the user once if it's unclear.")
     return slug(os.path.basename(cwd))
 
 
@@ -440,7 +461,7 @@ def show_map(store, project, open_browser=False):
     """Make sure the viewer is running (start it, or replace a stale one) and return its link."""
     import viewer
     port = viewer.start(store)
-    url = f"http://127.0.0.1:{port}/?project={project}"
+    url = f"http://127.0.0.1:{port}/" + (f"?project={project}" if project else "")
     if open_browser:
         import webbrowser
         try:
@@ -489,7 +510,10 @@ def hook(store):
         return  # the background builder's own session: don't capture or inject
     event = data.get("hook_event_name", "")
     cwd = data.get("cwd") or os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()
-    project = resolve_project(store, cwd=cwd)
+    try:
+        project = resolve_project(store, cwd=cwd)
+    except NoProject:
+        return
     if event == "SessionStart":
         if enabled(store, project) and os.environ.get("REMEMBER_VIEWER", "1") != "0":
             try:
@@ -564,8 +588,13 @@ def main(argv=None):
     ap.add_argument("--ids", action="store_true")
     ap.add_argument("-i", action="store_true")
     a = ap.parse_args(argv)
-    p = resolve_project(store, a.project)
     cmd = a.cmd
+    try:
+        p = resolve_project(store, a.project)
+    except NoProject as e:
+        p = None
+        if cmd not in ("hook", "install-cli", "mcp", "builder-prompt", "viewer", "serve", "atlas", "show"):
+            raise SystemExit(str(e))
 
     if cmd == "hook":
         try:
@@ -648,7 +677,7 @@ def main(argv=None):
         import viz
         out = a.out or os.path.join(store, "atlas.html")
         with open(out, "w", encoding="utf-8") as f:
-            f.write(viz.page(viz.build_data([p] if not a.all else None, store)))
+            f.write(viz.page(viz.build_data([p] if p and not a.all else None, store)))
         print(out)
         if a.open:
             import webbrowser
