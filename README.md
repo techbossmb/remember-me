@@ -69,6 +69,13 @@ remember import ~/Downloads/conversations-000.zip --list
 remember import ~/Downloads/conversations-000.zip --pick 3 --pick "lecture slides"
 ```
 
+## Updates
+
+remember.me updates from GitHub. In the Claude app, plugins sync automatically (or tap Sync under Customize →
+Plugins). A new chat gets the update right away; a chat that's already open gets it after you fully quit and reopen
+the Claude app (closing the window isn't enough). Your memory is the same files either way, so old and new chats see
+the same map.
+
 ## Other assistants
 
 See [`integrations/README.md`](integrations/README.md). In short: run `remember install-cli` to get a `remember`
