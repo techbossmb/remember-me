@@ -8,11 +8,11 @@
       "name": "remember-me",
       "source": "./",
       "description": "Verbatim conversation log + a map of it, in plain files any assistant can use.",
-      "version": "0.1.0"
+      "version": "0.2.0"
     }
   ],
   "metadata": {
     "description": "remember.me: long-term memory for AI agents",
-    "version": "0.1.0"
+    "version": "0.2.0"
   }
 }

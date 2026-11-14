@@ -186,7 +186,7 @@ def serve(store):
             if method == "initialize":
                 res = {"protocolVersion": params.get("protocolVersion") or PROTOCOL,
                        "capabilities": {"tools": {}},
-                       "serverInfo": {"name": "remember-me", "version": "0.1.0"},
+                       "serverInfo": {"name": "remember-me", "version": "0.2.0"},
                        "instructions": open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "guide.md"), encoding="utf-8").read()}
             elif method == "ping":
                 res = {}
