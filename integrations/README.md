@@ -49,4 +49,4 @@ even with no session open, set `REMEMBER_AUTOBUILD=background`; that uses Claude
 your assistant's headless command via `REMEMBER_BUILDER_CMD` with `{prompt}` where the instructions go (for example
 `REMEMBER_BUILDER_CMD='gemini -p {prompt}'`; that assistant needs the remember MCP server configured).
 
-**Showing the map**: the `remember_show_map` tool (or `remember show`) opens it in the user's browser.
+**Showing the map**: the `remember_show_map` tool (or `remember show`) starts the local viewer and returns a link for the user to click.
