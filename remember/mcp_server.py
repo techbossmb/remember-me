@@ -60,8 +60,32 @@ TOOLS = [
 ]
 
 
+# What each tool does to the user's data, as MCP tool annotations, so an app can treat reading and writing differently
+# (e.g. let reads through, ask before writes). Everything is local: no tool reaches outside the user's computer.
+READS = {"remember_guide", "remember_status", "remember_overview", "remember_zoom", "remember_spans", "remember_grep",
+         "remember_window", "remember_projects", "remember_builder_prompt", "remember_chunks", "remember_chunk",
+         "remember_coverage", "remember_validate"}
+# Writes that add to memory without deleting anything, and are safe to repeat (repeats are skipped / no-ops).
+ADDS = {"remember_log", "remember_import", "remember_ingest_sessions"}
+# remember_apply_ops changes the map: it can retire or merge threads, but map changes are appended as events, so
+# nothing is lost (the log itself is never touched). It is not safe to repeat blindly, hence not idempotent.
+# remember_show_map / remember_viewer start, stop or schedule the local viewer: no memory changes.
+LOCAL_PROCESS = {"remember_show_map", "remember_viewer"}
+
+
+def _annotations(name):
+    if name in READS:
+        return {"readOnlyHint": True, "openWorldHint": False}
+    if name in ADDS:
+        return {"readOnlyHint": False, "destructiveHint": False, "idempotentHint": True, "openWorldHint": False}
+    if name in LOCAL_PROCESS:
+        return {"readOnlyHint": False, "destructiveHint": False, "idempotentHint": True, "openWorldHint": False}
+    return {"readOnlyHint": False, "destructiveHint": False, "idempotentHint": False, "openWorldHint": False}
+
+
 def _tool_defs():
-    return [{"name": n, "description": d, "inputSchema": {"type": "object", "properties": {**props, **PROJECT}, "required": req}}
+    return [{"name": n, "description": d, "annotations": _annotations(n),
+             "inputSchema": {"type": "object", "properties": {**props, **PROJECT}, "required": req}}
             for n, d, props, req in TOOLS]
 
 
