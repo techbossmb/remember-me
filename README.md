@@ -12,31 +12,45 @@ Everything is plain files plus a small Python CLI with no dependencies, so the s
 Gemini CLI, Copilot, Cursor, Codex, or anything that can run a command or talk to an MCP server. A map built in one
 works in the others.
 
-> Early prototype. It works end to end in Claude Code; the other assistants are wired up but not yet tested.
-> Tell me what breaks.
+> Early prototype. Works end to end in the Claude desktop app (macOS) and Claude Code. Gemini CLI, Copilot, Cursor
+> and Codex are wired up but not yet tested. Tell me what breaks.
 
-## Try it in Claude Code (2 minutes)
+## Try it in the Claude app (desktop, macOS)
 
-1. Get this folder (clone or unzip) somewhere permanent, e.g. `~/tools/remember-me`.
-2. In Claude Code:
-   ```
-   /plugin marketplace add ~/tools/remember-me
-   /plugin install remember-me@remember-me
-   ```
-   (or try it for one session: `claude --plugin-dir ~/tools/remember-me`)
-3. Open a project you've already been working on with Claude Code and say: **"start memory for this project"**.
+1. In the Claude desktop app: **Customize → Plugins → Add marketplace**, enter `techbossmb/remember-me`, then
+   install **remember-me**.
+2. Fully quit and reopen the Claude app.
+3. In a project you've been working on, start a new chat and say: **"start memory for this project"**. Confirm the
+   project name it suggests.
 
-That's it. Claude brings in this folder's earlier Claude Code sessions that are still on disk, or, if there are
-none, what's in the current conversation. It tells you if it can see that the conversation began earlier than what
-it has. Then it builds the map, shows you what it now knows, and gives you a link to see it. From then on you don't
-think about it:
+Claude saves what's in the conversation, builds the map out of your way, and gives you a link to see it. Memory and
+the map viewer live on your Mac, so the desktop app needs to be open for memory to work, including from your phone.
+
+Good to know:
+- The first time, the app asks permission for each memory tool it uses. Approve them; it settles down after that.
+- In the Claude app, Claude saves the conversation at natural pauses rather than after every turn. "Save this to
+  memory" always works.
+- Older chats aren't included automatically. To bring them in, see "Want more history?" below.
+- Requires Python 3. On a Mac without it, the first use pops up an offer to install Apple's developer tools: accept it.
+
+## Try it in Claude Code
+
+```
+/plugin marketplace add techbossmb/remember-me
+/plugin install remember-me@remember-me
+```
+
+Then open a project you've already been working on and say: **"start memory for this project"**.
+
+Claude brings in this folder's earlier Claude Code sessions that are still on disk, or, if there are none, what's in
+the current conversation. Then it builds the map and gives you a link to see it. From then on:
 
 - every turn in that folder is saved to the log automatically;
 - the map keeps itself current: after finishing what you asked, Claude quietly hands new conversation to a
   sub-agent that updates the map, so none of that work lands in your conversation;
 - every new session starts with the map's overview, so "where were we?" just works.
 
-Nothing is captured until you start memory in a folder.
+Nothing is captured until you start memory in a project.
 
 ## See your map
 
