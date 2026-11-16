@@ -1,0 +1,406 @@
+=== status (empty)
+project: demo   store: <STORE>
+nothing stored for this project yet.
+other ways in: `remember log` (what's in the agent's context), `remember import` (claude.ai export).
+[exit 0]
+=== no project from /
+Which project? This app doesn't say which folder or project you're in, so pass `project`: the name of what the user is working on. No project has memory yet. Reuse an existing name when it's the same work; ask the user once if it's unclear.
+[exit 1]
+=== log A (cli)
+design: +4 messages (recalled)
+[exit 0]
+=== log A again (dedup)
+design: +0 messages (recalled), 4 already saved
+[exit 0]
+=== mcp 0
+followup: +3 messages (recalled)
+=== mcp 1
+followup: +0 messages (recalled), 1 already saved
+=== mcp 2
+ERROR error: Which project? This app doesn't say which folder or project you're in, so pass `project`: the name of what the user is working on. Projects with memory: demo. Reuse an existing name when it's the same work; ask the user once if it's unclear.
+=== mcp 3
+projects with memory: demo
+=== mcp 4
+project: demo   store: <STORE>
+log: 2 session(s), 7 messages, 2026-09-01 → 2026-09-03
+note: 2 session(s) were written from an agent's context (recalled, not verbatim).
+map: not built yet
+unmapped: 7 substantive messages not yet reachable from the map (2026-09-01T10:00 → 2026-09-03T09:10). `remember chunks --new` lists them for the builder.
+=== chunks
+chunk 0: 2026-09-01T10:00:00Z → 2026-09-03T09:10:00Z  (7 msgs: demo/design.md#m0001 … demo/followup.md#m0003)
+[exit 0]
+=== chunks --new
+chunk 0: 2026-09-01T10:00:00Z → 2026-09-03T09:10:00Z  (7 msgs: demo/design.md#m0001 … demo/followup.md#m0003)
+[exit 0]
+=== chunk 1
+no chunk 1; there are 1
+[exit 0]
+=== ops
+ok: demo #1 node.create at 2026-09-01T10:00:00Z
+ok: demo #2 claim.add at 2026-09-01T10:01:00Z
+ok: demo #3 node.create at 2026-09-01T10:05:00Z
+ok: demo #4 claim.add at 2026-09-01T10:05:00Z
+ok: demo #5 claim.add at 2026-09-01T10:06:00Z
+ok: demo #6 claim.supersede at 2026-09-03T09:00:00Z
+ok: demo #7 edge.add at 2026-09-03T09:00:00Z
+ok: demo #8 rule.add at 2026-09-03T09:10:00Z
+[exit 0]
+=== status
+project: demo   store: <STORE>
+log: 2 session(s), 7 messages, 2026-09-01 → 2026-09-03
+note: 2 session(s) were written from an agent's context (recalled, not verbatim).
+map: 2 threads, 1 rules, built up to 2026-09-03T09:10; 7 messages referenced
+[exit 0]
+=== overview
+# Memory map: demo  (as of 2026-09-03T09:10:00Z; tools: remember zoom <id> [<id>…] --q "<question>" | remember zoom --recent N, remember spans <file#mA-mB>, remember grep <regex> [--from D --to D], remember window <from> <to>, remember find <words>)
+The thread list below is your overview of everything in this project. To answer or act, pick EVERY thread that could bear on it by meaning (not by matching words; a question about losing data is about backups) and open them together in one call: zoom <id> <id> … --q "<the question>". It returns each thread with verbatim evidence and where it stands, its parent/sub-threads/links, and raw-log messages outside those threads that match the question. For 'where were we' questions: zoom --recent 5. Use find <words> only when no thread fits. For 'what's on the list' questions, enumerate the list node completely, give the count, and offer to scan the log since its last change for items mentioned but never added. Only say something was never discussed after a full scan of the relevant time window (window <from> <to>). This map is an index, not the record: if the log disagrees with the map, the log wins; say so. When you are about to DO work a rule's trigger covers, zoom its playbook and copy every step into your plan as a numbered checklist; answering questions doesn't need playbooks.
+## Rules — always apply
+- [R1] (user) Never ask the user to run terminal commands (since 2026-09-03)
+## Threads
+- [T1] (active) Memory design — Verbatim log plus an event-sourced map  ·2 msgs  ·last 2026-09-01
+    decided: Log as markdown per session; map as replayed events
+- [T2] (active) Map viewer — Local viewer that gives a link  ·2 msgs  ·last 2026-09-03
+    decided: Viewer gives a link and never auto-opens
+    decided: Viewer starts with each session; optional start at login
+## Links
+- T2 --depends_on--> T1
+[exit 0]
+=== overview --ids
+# Memory map: demo  (as of 2026-09-03T09:10:00Z; tools: remember zoom <id> [<id>…] --q "<question>" | remember zoom --recent N, remember spans <file#mA-mB>, remember grep <regex> [--from D --to D], remember window <from> <to>, remember find <words>)
+The thread list below is your overview of everything in this project. To answer or act, pick EVERY thread that could bear on it by meaning (not by matching words; a question about losing data is about backups) and open them together in one call: zoom <id> <id> … --q "<the question>". It returns each thread with verbatim evidence and where it stands, its parent/sub-threads/links, and raw-log messages outside those threads that match the question. For 'where were we' questions: zoom --recent 5. Use find <words> only when no thread fits. For 'what's on the list' questions, enumerate the list node completely, give the count, and offer to scan the log since its last change for items mentioned but never added. Only say something was never discussed after a full scan of the relevant time window (window <from> <to>). This map is an index, not the record: if the log disagrees with the map, the log wins; say so. When you are about to DO work a rule's trigger covers, zoom its playbook and copy every step into your plan as a numbered checklist; answering questions doesn't need playbooks.
+## Rules — always apply
+- [R1] (user) Never ask the user to run terminal commands (since 2026-09-03)
+## Threads
+- [T1] (active) Memory design — Verbatim log plus an event-sourced map  ·2 msgs  ·last 2026-09-01
+    decided C2: Log as markdown per session; map as replayed events
+- [T2] (active) Map viewer — Local viewer that gives a link  ·2 msgs  ·last 2026-09-03
+    decided T2.d1: Viewer gives a link and never auto-opens
+    decided C6: Viewer starts with each session; optional start at login
+## Links
+- T2 --depends_on--> T1
+[exit 0]
+=== zoom T2 --q viewer login
+# zoom: T2  — q: viewer login
+## T2
+[T2] (active) Map viewer — Local viewer that gives a link  ·2 msgs
+  decisions:
+    - [T2.d1] Viewer gives a link and never auto-opens  (2026-09-01)
+        evidence: demo/design.md#m0003 [user]: "Decision: the viewer runs on localhost port 8765 and never auto-opens the browser; just give the user a link."
+    - [C6] Viewer starts with each session; optional start at login  (2026-09-03)
+        evidence: demo/followup.md#m0001 [user]: "Change of plan on the viewer: start it automatically when a session starts, and offer to start it at login too."
+  open questions:
+    - (superseded 2026-09-03, resolved: autostart option added) Should the viewer start on login?
+  where it stands in the log: last: demo/design.md#m0004 2026-09-01T10:06: "Noted. The viewer gives a link only. Open question: should the viewer start on login?"
+    next message: demo/followup.md#m0001 [user]: "Change of plan on the viewer: start it automatically when a session starts, and offer to start it at login too."
+  link: T2 --depends_on--> T1  (Memory design)
+## neighbours (not opened; zoom them if they matter)
+- [T1] (active) Memory design — Verbatim log plus an event-sourced map  ·last 2026-09-01  [T2 depends_on T1]
+## raw-log messages outside these threads that also match the question
+- demo/followup.md#m0001 [user]: Change of plan on the viewer: start it automatically when a session starts, and offer to start it at login too.
+[exit 0]
+=== zoom --recent 2
+# zoom: T2 T1
+most recently active first: T2 (last 2026-09-03T09:01), T1 (last 2026-09-01T10:01)
+## T2
+[T2] (active) Map viewer — Local viewer that gives a link  ·2 msgs
+  decisions:
+    - [T2.d1] Viewer gives a link and never auto-opens  (2026-09-01)
+        evidence: demo/design.md#m0003 [user]: "Decision: the viewer runs on localhost port 8765 and never auto-opens the browser; just give the user a link."
+    - [C6] Viewer starts with each session; optional start at login  (2026-09-03)
+        evidence: demo/followup.md#m0001 [user]: "Change of plan on the viewer: start it automatically when a session starts, and offer to start it at login too."
+  open questions:
+    - (superseded 2026-09-03, resolved: autostart option added) Should the viewer start on login?
+  where it stands in the log: last: demo/design.md#m0004 2026-09-01T10:06: "Noted. The viewer gives a link only. Open question: should the viewer start on login?"
+    next message: demo/followup.md#m0001 [user]: "Change of plan on the viewer: start it automatically when a session starts, and offer to start it at login too."
+  link: T2 --depends_on--> T1  (Memory design)
+## T1
+[T1] (active) Memory design — Verbatim log plus an event-sourced map  ·2 msgs
+  decisions:
+    - [C2] Log as markdown per session; map as replayed events  (2026-09-01)
+        evidence: demo/design.md#m0002 [assistant]: "I'd store the log as plain markdown per session and the map as an append-only event list replayed in time order, so nothing is ever lost."
+  where it stands in the log: last: demo/design.md#m0002 2026-09-01T10:01: "Agreed. I'd store the log as plain markdown per session and the map as an append-only event list replayed in time order, so nothing is ever lost."
+    next message: demo/design.md#m0003 [user]: "Decision: the viewer runs on localhost port 8765 and never auto-opens the browser; just give the user a link."
+  link: T2 --depends_on--> T1  (Map viewer)
+[exit 0]
+=== expand T2
+[T2] (active) Map viewer — Local viewer that gives a link  ·2 msgs
+  spans: demo/design.md#m0003-m0004
+  decisions:
+    - [T2.d1] Viewer gives a link and never auto-opens  (2026-09-01)
+        evidence: demo/design.md#m0003 [user]: "Decision: the viewer runs on localhost port 8765 and never auto-opens the browser; just give the user a link."
+    - [C6] Viewer starts with each session; optional start at login  (2026-09-03)
+        evidence: demo/followup.md#m0001 [user]: "Change of plan on the viewer: start it automatically when a session starts, and offer to start it at login too."
+  open questions:
+    - (superseded 2026-09-03, resolved: autostart option added) Should the viewer start on login?
+  where it stands in the log: last: demo/design.md#m0004 2026-09-01T10:06: "Noted. The viewer gives a link only. Open question: should the viewer start on login?"
+    next message: demo/followup.md#m0001 [user]: "Change of plan on the viewer: start it automatically when a session starts, and offer to start it at login too."
+  link: T2 --depends_on--> T1  (Memory design)
+[exit 0]
+=== spans demo/design.md#m0001-m0002
+=== demo/design.md#m0001-m0002
+--- demo/design.md#m0001 [user] 2026-09-01T10:00:00Z
+We need a memory system for agents. Keep the raw conversation verbatim and build a map over it, with every claim pointing back to the messages.
+--- demo/design.md#m0002 [assistant] 2026-09-01T10:01:00Z
+Agreed. I'd store the log as plain markdown per session and the map as an append-only event list replayed in time order, so nothing is ever lost.
+[exit 0]
+=== grep viewer
+demo/design.md#m0003 [user]: Decision: the viewer runs on localhost port 8765 and never auto-opens the browser; just give the user a link.
+demo/design.md#m0004 [assistant]: Noted. The viewer gives a link only. Open question: should the viewer start on login?
+demo/followup.md#m0001 [user]: Change of plan on the viewer: start it automatically when a session starts, and offer to start it at login too.
+demo/followup.md#m0002 [assistant]: Done: the viewer now starts at session start, and there is an autostart option for login. That answers the open question.
+[exit 0]
+=== grep viewer --from 2026-09-02
+demo/followup.md#m0001 [user]: Change of plan on the viewer: start it automatically when a session starts, and offer to start it at login too.
+demo/followup.md#m0002 [assistant]: Done: the viewer now starts at session start, and there is an autostart option for login. That answers the open question.
+[exit 0]
+=== window 2026-09-01 2026-09-02
+# demo between 2026-09-01T00:00 and 2026-09-03T00:00: 4 messages
+- demo/design.md: 4 messages (m0001–m0004)  → spans demo/design.md#m0001-m0004
+## Map changes in this window
+- [T1] Memory design: created; +decision: Log as markdown per session; map as replayed events
+- [T2] Map viewer: created; +decision: Viewer gives a link and never auto-opens; +open: Should the viewer start on login?
+[exit 0]
+=== find viewer link
+# recall: viewer link
+matched threads: T2
+## T2
+[T2] (active) Map viewer — Local viewer that gives a link  ·2 msgs
+  decisions:
+    - [T2.d1] Viewer gives a link and never auto-opens  (2026-09-01)
+        evidence: demo/design.md#m0003 [user]: "Decision: the viewer runs on localhost port 8765 and never auto-opens the browser; just give the user a link."
+    - [C6] Viewer starts with each session; optional start at login  (2026-09-03)
+        evidence: demo/followup.md#m0001 [user]: "Change of plan on the viewer: start it automatically when a session starts, and offer to start it at login too."
+  open questions:
+    - (superseded 2026-09-03, resolved: autostart option added) Should the viewer start on login?
+  where it stands in the log: last: demo/design.md#m0004 2026-09-01T10:06: "Noted. The viewer gives a link only. Open question: should the viewer start on login?"
+    next message: demo/followup.md#m0001 [user]: "Change of plan on the viewer: start it automatically when a session starts, and offer to start it at login too."
+  link: T2 --depends_on--> T1  (Memory design)
+[exit 0]
+=== coverage
+coverage: 100% of 7 substantive messages are reachable from the map; 0 are not
+[exit 0]
+=== validate
+OK: 2 nodes, 1 edges, 1 active rules
+[exit 0]
+=== chunks --new
+nothing new to map
+[exit 0]
+=== mcp b0
+# Memory map: demo  (as of 2026-09-03T09:10:00Z; tools: remember_zoom <id> [<id>…] --q "<question>" | remember_zoom --recent N, remember_spans <file#mA-mB>, remember_grep <regex> [--from D --to D], remember_window <from> <to>, remember_find <words>)
+The thread list below is your overview of everything in this project. To answer or act, pick EVERY thread that could bear on it by meaning (not by matching words; a question about losing data is about backups) and open them together in one call: zoom <id> <id> … --q "<the question>". It returns each thread with verbatim evidence and where it stands, its parent/sub-threads/links, and raw-log messages outside those threads that match the question. For 'where were we' questions: zoom --recent 5. Use find <words> only when no thread fits. For 'what's on the list' questions, enumerate the list node completely, give the count, and offer to scan the log since its last change for items mentioned but never added. Only say something was never discussed after a full scan of the relevant time window (window <from> <to>). This map is an index, not the record: if the log disagrees with the map, the log wins; say so. When you are about to DO work a rule's trigger covers, zoom its playbook and copy every step into your plan as a numbered checklist; answering questions doesn't need playbooks.
+## Rules — always apply
+- [R1] (user) Never ask the user to run terminal commands (since 2026-09-03)
+## Threads
+- [T1] (active) Memory design — Verbatim log plus an event-sourced map  ·2 msgs  ·last 2026-09-01
+    decided: Log as markdown per session; map as replayed events
+- [T2] (active) Map viewer — Local viewer that gives a link  ·2 msgs  ·last 2026-09-03
+    decided: Viewer gives a link and never auto-opens
+    decided: Viewer starts with each session; optional start at login
+## Links
+- T2 --depends_on--> T1
+=== mcp b1
+# zoom: T1
+## T1
+[T1] (active) Memory design — Verbatim log plus an event-sourced map  ·2 msgs
+  decisions:
+    - [C2] Log as markdown per session; map as replayed events  (2026-09-01)
+        evidence: demo/design.md#m0002 [assistant]: "I'd store the log as plain markdown per session and the map as an append-only event list replayed in time order, so nothing is ever lost."
+  where it stands in the log: last: demo/design.md#m0002 2026-09-01T10:01: "Agreed. I'd store the log as plain markdown per session and the map as an append-only event list replayed in time order, so nothing is ever lost."
+    next message: demo/design.md#m0003 [user]: "Decision: the viewer runs on localhost port 8765 and never auto-opens the browser; just give the user a link."
+  link: T2 --depends_on--> T1  (Map viewer)
+## neighbours (not opened; zoom them if they matter)
+- [T2] (active) Map viewer — Local viewer that gives a link  ·last 2026-09-03  [T2 depends_on T1]
+=== mcp b2
+ok: demo #9 node.update at 2026-09-03T09:10:00Z
+=== mcp b3
+# Memory map: demo  (as of 2026-09-03T09:10:00Z; tools: remember_zoom <id> [<id>…] --q "<question>" | remember_zoom --recent N, remember_spans <file#mA-mB>, remember_grep <regex> [--from D --to D], remember_window <from> <to>, remember_find <words>)
+The thread list below is your overview of everything in this project. To answer or act, pick EVERY thread that could bear on it by meaning (not by matching words; a question about losing data is about backups) and open them together in one call: zoom <id> <id> … --q "<the question>". It returns each thread with verbatim evidence and where it stands, its parent/sub-threads/links, and raw-log messages outside those threads that match the question. For 'where were we' questions: zoom --recent 5. Use find <words> only when no thread fits. For 'what's on the list' questions, enumerate the list node completely, give the count, and offer to scan the log since its last change for items mentioned but never added. Only say something was never discussed after a full scan of the relevant time window (window <from> <to>). This map is an index, not the record: if the log disagrees with the map, the log wins; say so. When you are about to DO work a rule's trigger covers, zoom its playbook and copy every step into your plan as a numbered checklist; answering questions doesn't need playbooks.
+## Rules — always apply
+- [R1] (user) Never ask the user to run terminal commands (since 2026-09-03)
+## Threads
+- [T1] (done) Memory design — Verbatim log plus an event-sourced map  ·3 msgs  ·last 2026-09-03
+- [T2] (active) Map viewer — Local viewer that gives a link  ·2 msgs  ·last 2026-09-03
+    decided: Viewer gives a link and never auto-opens
+    decided: Viewer starts with each session; optional start at login
+## Links
+- T2 --depends_on--> T1
+=== mcp b4
+coverage: 100% of 7 substantive messages are reachable from the map; 0 are not
+=== mcp b5
+OK: 2 nodes, 1 edges, 1 active rules
+=== mcp b6
+=== demo/followup.md#m0003
+--- demo/followup.md#m0003 [user] 2026-09-03T09:10:00Z
+Rule for every project: never ask the user to run terminal commands; the assistant does everything through the tools.
+=== store files
+--- log/demo/design.md
+<!-- remember.me raw log | session: design -->
+
+## m0001 · user · 2026-09-01T10:00:00Z
+We need a memory system for agents. Keep the raw conversation verbatim and build a map over it, with every claim pointing back to the messages.
+
+## m0002 · assistant · 2026-09-01T10:01:00Z
+Agreed. I'd store the log as plain markdown per session and the map as an append-only event list replayed in time order, so nothing is ever lost.
+
+## m0003 · user · 2026-09-01T10:05:00Z
+Decision: the viewer runs on localhost port 8765 and never auto-opens the browser; just give the user a link.
+
+## m0004 · assistant · 2026-09-01T10:06:00Z
+Noted. The viewer gives a link only. Open question: should the viewer start on login?
+
+--- log/demo/design.meta.json
+{"source": "recalled", "logged_at": "<T>"}
+--- log/demo/followup.md
+<!-- remember.me raw log | session: followup -->
+
+## m0001 · user · 2026-09-03T09:00:00Z
+Change of plan on the viewer: start it automatically when a session starts, and offer to start it at login too.
+
+## m0002 · assistant · 2026-09-03T09:01:00Z
+Done: the viewer now starts at session start, and there is an autostart option for login. That answers the open question.
+
+## m0003 · user · 2026-09-03T09:10:00Z
+Rule for every project: never ask the user to run terminal commands; the assistant does everything through the tools.
+
+--- log/demo/followup.meta.json
+{"source": "recalled", "logged_at": "<T>"}
+--- maps/demo/events.jsonl
+{"op": "node.create", "id": "T1", "type": "thread", "title": "Memory design", "status": "active", "summary": "Verbatim log plus an event-sourced map", "src": "demo/design.md#m0001-m0002", "at": "2026-09-01T10:00:00Z", "by": "builder", "seq": 1}
+{"op": "claim.add", "node": "T1", "kind": "decision", "text": "Log as markdown per session; map as replayed events", "spans": ["demo/design.md#m0002"], "src": "demo/design.md#m0002", "at": "2026-09-01T10:01:00Z", "by": "builder", "seq": 2}
+{"op": "node.create", "id": "T2", "type": "thread", "title": "Map viewer", "status": "active", "summary": "Local viewer that gives a link", "src": "demo/design.md#m0003-m0004", "at": "2026-09-01T10:05:00Z", "by": "builder", "seq": 3}
+{"op": "claim.add", "node": "T2", "kind": "decision", "cid": "T2.d1", "text": "Viewer gives a link and never auto-opens", "spans": ["demo/design.md#m0003"], "src": "demo/design.md#m0003", "at": "2026-09-01T10:05:00Z", "by": "builder", "seq": 4}
+{"op": "claim.add", "node": "T2", "kind": "open", "cid": "T2.o1", "text": "Should the viewer start on login?", "spans": ["demo/design.md#m0004"], "src": "demo/design.md#m0004", "at": "2026-09-01T10:06:00Z", "by": "builder", "seq": 5}
+{"op": "claim.supersede", "id": "T2.o1", "reason": "resolved: autostart option added", "new": {"kind": "decision", "text": "Viewer starts with each session; optional start at login", "spans": ["demo/followup.md#m0001-m0002"]}, "src": "demo/followup.md#m0001", "at": "2026-09-03T09:00:00Z", "by": "builder", "seq": 6}
+{"op": "edge.add", "from": "T2", "to": "T1", "type": "depends_on", "src": "demo/followup.md#m0001", "at": "2026-09-03T09:00:00Z", "by": "builder", "seq": 7}
+{"op": "rule.add", "id": "R1", "scope": "user", "text": "Never ask the user to run terminal commands", "spans": ["demo/followup.md#m0003"], "src": "demo/followup.md#m0003", "at": "2026-09-03T09:10:00Z", "by": "builder", "seq": 8}
+{"op": "node.update", "id": "T1", "status": "done", "src": "demo/followup.md#m0003", "at": "2026-09-03T09:10:00Z", "by": "builder", "seq": 9}
+
+--- maps/demo/graph.json
+{
+ "project": "demo",
+ "logs": [
+  "demo/design.md",
+  "demo/followup.md"
+ ],
+ "built": "<NOW>",
+ "as_of": "2026-09-03T09:10:00Z",
+ "nodes": [
+  {
+   "id": "T1",
+   "type": "thread",
+   "title": "Memory design",
+   "status": "done",
+   "summary": "Verbatim log plus an event-sourced map",
+   "aliases": [],
+   "spans": [
+    "demo/design.md#m0001-m0002",
+    "demo/followup.md#m0003"
+   ],
+   "weight": 0.5,
+   "first_seen": "2026-09-01T10:00:00Z",
+   "decisions": [
+    {
+     "id": "C2",
+     "text": "Log as markdown per session; map as replayed events",
+     "at": "2026-09-01T10:01:00Z",
+     "spans": [
+      "demo/design.md#m0002"
+     ]
+    }
+   ],
+   "requirements": [],
+   "rejected": [],
+   "open_questions": [],
+   "items": [],
+   "last_seen": "2026-09-03T09:10:00Z"
+  },
+  {
+   "id": "T2",
+   "type": "thread",
+   "title": "Map viewer",
+   "status": "active",
+   "summary": "Local viewer that gives a link",
+   "aliases": [],
+   "spans": [
+    "demo/design.md#m0003-m0004"
+   ],
+   "weight": 0.5,
+   "first_seen": "2026-09-01T10:05:00Z",
+   "decisions": [
+    {
+     "id": "T2.d1",
+     "text": "Viewer gives a link and never auto-opens",
+     "at": "2026-09-01T10:05:00Z",
+     "spans": [
+      "demo/design.md#m0003"
+     ]
+    },
+    {
+     "id": "C6",
+     "text": "Viewer starts with each session; optional start at login",
+     "at": "2026-09-03T09:00:00Z",
+     "spans": [
+      "demo/followup.md#m0001-m0002"
+     ],
+     "supersedes": "T2.o1"
+    }
+   ],
+   "requirements": [],
+   "rejected": [],
+   "open_questions": [
+    {
+     "id": "T2.o1",
+     "text": "Should the viewer start on login?",
+     "at": "2026-09-01T10:06:00Z",
+     "spans": [
+      "demo/design.md#m0004"
+     ],
+     "superseded_by": "C6",
+     "superseded_at": "2026-09-03T09:00:00Z",
+     "superseded_reason": "resolved: autostart option added"
+    }
+   ],
+   "items": [],
+   "last_seen": "2026-09-01T10:05:00Z"
+  }
+ ],
+ "edges": [
+  {
+   "src": "T2",
+   "dst": "T1",
+   "type": "depends_on"
+  }
+ ],
+ "rules": [
+  {
+   "id": "R1",
+   "scope": "user",
+   "text": "Never ask the user to run terminal commands",
+   "stated": "2026-09-03T09:10:00Z",
+   "spans": [
+    "demo/followup.md#m0003"
+   ],
+   "status": "active"
+  }
+ ],
+ "warnings": []
+}
+--- maps/demo/sources.json
+{
+ "sources": [
+  {
+   "file": "demo/design.md",
+   "start": "2026-09-01T10:00:00Z",
+   "end": "2026-09-01T10:06:00Z",
+   "source": "recalled",
+   "logged_at": "<T>"
+  },
+  {
+   "file": "demo/followup.md",
+   "start": "2026-09-03T09:00:00Z",
+   "end": "2026-09-03T09:10:00Z",
+   "source": "recalled",
+   "logged_at": "<T>"
+  }
+ ]
+}

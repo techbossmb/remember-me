@@ -15,7 +15,7 @@ Ops (fields besides seq/at/src/by):
   node.create  {id, type: project|thread|playbook, title, status, summary, parent?, aliases?, spans?, weight?}
   node.update  {id, title?, status?, summary?, aliases? (added), spans? (added), weight?}
   node.merge   {from, into}            node.move {id, parent}
-  claim.add    {node, kind: decision|requirement|rejected|open, text, quote?, why?, spans?, id?}
+  claim.add    {node, kind: decision|requirement|rejected|open, text, quote?, why?, spans?, cid?}
   claim.supersede {id, reason?, new?: {kind, text, quote?, why?, spans?}}   (open questions: "resolved")
   edge.add     {src, dst, type, note?}  edge.remove {src, dst, type}
   rule.add     {id?, scope: user|project, text, playbook?, spans?}
@@ -53,6 +53,8 @@ import os
 import re
 import sys
 
+from store import as_store
+
 TOOL_PREFIX = ""  # e.g. "remember " when used through the CLI
 ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 EDGE_TYPES = {"contains", "pivoted_from", "revisits", "supersedes", "depends_on",
@@ -66,9 +68,12 @@ _LOG_CACHE = {}
 
 
 def _parse_log(root, fname):
-    key = (root, fname)
+    st = as_store(root)
+    key = (st.key, fname)
     if key not in _LOG_CACHE:
-        text = open(os.path.join(root, "log", fname), encoding="utf-8").read()
+        text = st.read("log/" + fname)
+        if text is None:
+            raise FileNotFoundError(f"no log file {fname}")
         heads = list(HDR.finditer(text))
         out = []
         for i, h in enumerate(heads):
@@ -101,11 +106,12 @@ def _iso(t):
 
 
 def sources(root, project):
-    p = os.path.join(root, "maps", project, "sources.json")
-    if os.path.exists(p):
-        return json.load(open(p, encoding="utf-8"))["sources"]
-    g = os.path.join(root, "maps", project, "graph.json")  # legacy maps: logs list, no times
-    logs = json.load(open(g, encoding="utf-8")).get("logs", []) if os.path.exists(g) else []
+    st = as_store(root)
+    t = st.read(f"maps/{project}/sources.json")
+    if t is not None:
+        return json.loads(t)["sources"]
+    g = st.read(f"maps/{project}/graph.json")  # legacy maps: logs list, no times
+    logs = json.loads(g).get("logs", []) if g is not None else []
     return [{"file": f, "start": "2000-01-01", "end": "2000-01-02", "order_uncertain": True} for f in logs]
 
 
@@ -138,7 +144,7 @@ def when(root, project, span):
     mid = (rng.split("-")[0] if rng else None)
     cands = [s for s in sources(root, project) if s["file"] == f]
     if not cands:
-        for p in os.listdir(os.path.join(root, "maps")):
+        for p in as_store(root).listdir("maps"):
             cands += [s for s in sources(root, p) if s["file"] == f]
     if not cands:
         raise ValueError(f"span {span}: file not in any project's sources.json")
@@ -167,40 +173,24 @@ def visible(root, project, fname, mid, cut):
 # ---------------------------------------------------------------- events -> map (replay)
 
 
-def _events_path(root, project):
-    return os.path.join(root, "maps", project, "events.jsonl")
+def _events_rel(project):
+    return f"maps/{project}/events.jsonl"
 
 
 def read_events(root, project):
-    p = _events_path(root, project)
-    if not os.path.exists(p):
-        return []
-    return [json.loads(l) for l in open(p, encoding="utf-8") if l.strip()]
-
-
-def _lock(f):
-    """Exclusive lock on an open file, released when it closes. POSIX flock; on Windows msvcrt."""
-    try:
-        import fcntl
-        fcntl.flock(f, fcntl.LOCK_EX)
-    except ImportError:
-        import msvcrt
-        f.seek(0)
-        msvcrt.locking(f.fileno(), msvcrt.LK_LOCK, 1)
+    t = as_store(root).read(_events_rel(project))
+    return [json.loads(l) for l in (t or "").splitlines() if l.strip()]
 
 
 def append_event(root, project, ev):
+    st = as_store(root)
     target = ev.pop("project", None) or project
-    os.makedirs(os.path.join(root, "maps", target), exist_ok=True)
-    with open(_events_path(root, target), "a+", encoding="utf-8") as f:
-        _lock(f)  # several builders/sessions may write at once
-        f.seek(0)
-        seqs = [json.loads(l)["seq"] for l in f if l.strip()]
+    with st.lock(_events_rel(target)):  # several builders/sessions may write at once
+        seqs = [json.loads(l)["seq"] for l in (st.read(_events_rel(target)) or "").splitlines() if l.strip()]
         ev["seq"] = max(seqs, default=0) + 1
         if target != project:
             ev["origin_project"] = project
-        f.seek(0, 2)
-        f.write(json.dumps(ev, ensure_ascii=False) + "\n")
+        st.append(_events_rel(target), json.dumps(ev, ensure_ascii=False) + "\n")
     return target, ev
 
 
@@ -362,11 +352,11 @@ def replay(root, project, cut=None):
 
 
 def load(root, project, cut=None):
-    if os.path.exists(_events_path(root, project)) or os.path.exists(os.path.join(root, "maps", project, "sources.json")):
+    st = as_store(root)
+    if st.exists(_events_rel(project)) or st.exists(f"maps/{project}/sources.json"):
         g = replay(root, project, cut)
     else:
-        with open(os.path.join(root, "maps", project, "graph.json"), encoding="utf-8") as f:
-            g = json.load(f)
+        g = json.loads(st.read(f"maps/{project}/graph.json") or "{}")
     g["_by_id"] = {n["id"]: n for n in g.get("nodes", [])}
     g["_cut"] = cut
     g["_root"] = root
@@ -375,8 +365,7 @@ def load(root, project, cut=None):
 
 def save_cache(root, project):
     g = replay(root, project)
-    with open(os.path.join(root, "maps", project, "graph.json"), "w", encoding="utf-8") as f:
-        json.dump(g, f, indent=1, ensure_ascii=False)
+    as_store(root).write(f"maps/{project}/graph.json", json.dumps(g, indent=1, ensure_ascii=False))
     return g
 
 # ---------------------------------------------------------------- span tools

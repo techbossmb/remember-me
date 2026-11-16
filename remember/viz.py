@@ -19,8 +19,9 @@ ROOT = memmap.ROOT
 
 
 def build_data(projects=None, root=ROOT):
-    projects = projects or sorted(p for p in os.listdir(os.path.join(root, "maps"))
-                                  if os.path.exists(os.path.join(root, "maps", p, "graph.json")))
+    from store import as_store
+    st = as_store(root)
+    projects = projects or sorted(p for p in st.listdir("maps") if st.exists(f"maps/{p}/graph.json"))
     data = {"projects": {}}
     for p in projects:
         g = memmap.load(root, p)

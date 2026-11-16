@@ -89,11 +89,11 @@ def _tool_defs():
             for n, d, props, req in TOOLS]
 
 
-def _run(argv):
+def _run(argv, store=None):
     buf = io.StringIO()
     try:
         with contextlib.redirect_stdout(buf):
-            cli.main(argv)
+            cli.main(argv, store=store)
     except SystemExit as e:
         if e.code not in (None, 0):
             buf.write(str(e.code))
@@ -101,47 +101,48 @@ def _run(argv):
 
 
 def call(store, name, args):
+    run = lambda argv: _run(argv, store)  # noqa: E731
     pj = ["--project", args["project"]] if args.get("project") else []
     if name == "remember_status":
-        return _run(["status"] + pj)
+        return run(["status"] + pj)
     if name == "remember_overview":
-        return _run(["overview"] + pj + (["--ids"] if args.get("ids") else []))
+        return run(["overview"] + pj + (["--ids"] if args.get("ids") else []))
     if name == "remember_zoom":
         argv = ["zoom"] + list(args.get("ids") or []) + pj
         if args.get("question"):
             argv += ["--q", args["question"]]
         if args.get("recent"):
             argv += ["--recent", str(args["recent"])]
-        return _run(argv)
+        return run(argv)
     if name == "remember_spans":
-        return _run(["spans"] + list(args["spans"]) + pj)
+        return run(["spans"] + list(args["spans"]) + pj)
     if name == "remember_grep":
         argv = ["grep", args["pattern"]] + pj
         if args.get("from"):
             argv += ["--from", args["from"]]
         if args.get("to"):
             argv += ["--to", args["to"]]
-        return _run(argv)
+        return run(argv)
     if name == "remember_window":
-        return _run(["window", args["from"]] + ([args["to"]] if args.get("to") else []) + pj)
+        return run(["window", args["from"]] + ([args["to"]] if args.get("to") else []) + pj)
     if name == "remember_log":
         p = cli.resolve_project(store, args.get("project"))
         msgs = [(m["role"], m.get("ts", ""), m["text"]) for m in args["messages"]]
         return cli.log_messages(store, p, args.get("session") or "recalled", msgs, args.get("source") or "recalled", args.get("note"))
     if name == "remember_show_map":
-        return _run(["show"] + pj)
+        return run(["show"] + pj)
     if name == "remember_projects":
         ps = cli.list_projects(store)
         return ("projects with memory: " + ", ".join(ps)) if ps else "no projects have memory yet"
     if name == "remember_viewer":
         act = args["action"]
         sub = {"autostart_on": ["autostart", "on"], "autostart_off": ["autostart", "off"]}.get(act, [act])
-        return _run(["viewer"] + sub)
+        return run(["viewer"] + sub)
     if name == "remember_import":
         argv = ["import", args["path"]] + pj
         for p in args.get("picks") or []:
             argv += ["--pick", p]
-        return _run(argv + ([] if args.get("picks") else ["--list"]))
+        return run(argv + ([] if args.get("picks") else ["--list"]))
     if name == "remember_ingest_sessions":
         folder = args.get("folder") or os.getcwd()
         files = cli.claude_code_sessions(folder)
@@ -151,20 +152,20 @@ def call(store, name, args):
     if name == "remember_guide":
         return open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "guide.md"), encoding="utf-8").read()
     if name == "remember_builder_prompt":
-        return _run(["builder-prompt"])
+        return run(["builder-prompt"])
     if name == "remember_chunks":
-        return _run(["chunks"] + (["--new"] if args.get("new_only") else []) + pj)
+        return run(["chunks"] + (["--new"] if args.get("new_only") else []) + pj)
     if name == "remember_chunk":
-        return _run(["chunk", str(args["n"])] + pj)
+        return run(["chunk", str(args["n"])] + pj)
     if name == "remember_apply_ops":
         import tempfile
         with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
             json.dump(args["ops"], f)
-        return _run(["ops", f.name] + pj)
+        return run(["ops", f.name] + pj)
     if name == "remember_coverage":
-        return _run(["coverage"] + pj)
+        return run(["coverage"] + pj)
     if name == "remember_validate":
-        return _run(["validate"] + pj)
+        return run(["validate"] + pj)
     raise ValueError(f"unknown tool {name}")
 
 

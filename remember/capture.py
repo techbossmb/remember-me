@@ -102,16 +102,17 @@ ADAPTERS = {"claude_code": read_claude_code}
 # ---------------------------------------------------------------- append-only raw log
 
 
-def append_log(entries, out_dir, session):
-    """Append unseen entries to out_dir/<session>.md. Dedup by entry id, not by count, because
+def append_log(entries, store, rel_dir, session):
+    """Append unseen entries to <rel_dir>/<session>.md in the store. Dedup by entry id, not by count, because
     harness transcripts get truncated (we saw 1710 lines shrink to 101). Returns #new messages."""
-    os.makedirs(out_dir, exist_ok=True)
-    log_path = os.path.join(out_dir, f"{session}.md")
-    state_path = os.path.join(out_dir, f"{session}.state.json")
+    from store import as_store
+    st = as_store(store)
+    log_rel = f"{rel_dir}/{session}.md"
+    state_rel = f"{rel_dir}/{session}.state.json"
     state = {"seen": [], "last_id": 0, "last_role": None}
-    if os.path.exists(state_path):
-        with open(state_path, encoding="utf-8") as f:
-            state = json.load(f)
+    t = st.read(state_rel)
+    if t is not None:
+        state = json.loads(t)
     seen = set(state["seen"])
 
     chunks, summaries, new = [], [], 0
@@ -131,16 +132,12 @@ def append_log(entries, out_dir, session):
         new += 1
         chunks.append(f"\n## m{state['last_id']:04d} · {role} · {ts}\n{txt}\n")
 
-    if not os.path.exists(log_path):
-        with open(log_path, "w", encoding="utf-8") as f:
-            f.write(f"<!-- remember.me raw log | session: {session} -->\n")
+    if not st.exists(log_rel):
+        st.write(log_rel, f"<!-- remember.me raw log | session: {session} -->\n")
     if chunks:
-        with open(log_path, "a", encoding="utf-8") as f:
-            f.write("".join(chunks))
+        st.append(log_rel, "".join(chunks))
     if summaries:
-        with open(os.path.join(out_dir, f"{session}.compactions.md"), "a", encoding="utf-8") as f:
-            for ts, txt in summaries:
-                f.write(f"\n## compaction summary · {ts}\n{txt}\n")
-    with open(state_path, "w", encoding="utf-8") as f:
-        json.dump(state, f)
+        st.append(f"{rel_dir}/{session}.compactions.md",
+                  "".join(f"\n## compaction summary · {ts}\n{txt}\n" for ts, txt in summaries))
+    st.write(state_rel, json.dumps(state))
     return new

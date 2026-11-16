@@ -61,6 +61,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import memmap  # noqa: E402
 import capture  # noqa: E402
+from store import Store, as_store  # noqa: E402
 
 memmap.TOOL_PREFIX = "remember "
 OVERVIEW_BUDGET = 9000  # Claude Code caps injected session-start context at 10,000 characters
@@ -77,14 +78,12 @@ def slug(s):
 
 
 def _registry(store):
-    p = os.path.join(store, "projects.json")
-    return json.load(open(p, encoding="utf-8")) if os.path.exists(p) else {}
+    t = as_store(store).read("projects.json")
+    return json.loads(t) if t is not None else {}
 
 
 def _save_registry(store, reg):
-    os.makedirs(store, exist_ok=True)
-    with open(os.path.join(store, "projects.json"), "w", encoding="utf-8") as f:
-        json.dump(reg, f, indent=1)
+    as_store(store).write("projects.json", json.dumps(reg, indent=1))
 
 
 class NoProject(Exception):
@@ -127,48 +126,43 @@ def resolve_project(store, explicit=None, cwd=None):
 
 
 def list_projects(store):
+    st = as_store(store)
     names = set()
     for sub in ("log", "maps"):
-        d = os.path.join(store, sub)
-        if os.path.isdir(d):
-            names |= {n for n in os.listdir(d) if os.path.isdir(os.path.join(d, n))}
+        names |= {n for n in st.listdir(sub) if st.isdir(f"{sub}/{n}")}
     return sorted(names)
 
 
 def enabled(store, project):
-    return os.path.isdir(os.path.join(store, "log", project)) or os.path.isdir(os.path.join(store, "maps", project))
+    st = as_store(store)
+    return st.isdir(f"log/{project}") or st.isdir(f"maps/{project}")
 
 
 def refresh_sources(store, project):
     """Rebuild maps/<p>/sources.json from the log files: start/end from message timestamps."""
-    ldir = os.path.join(store, "log", project)
+    st = as_store(store)
     out = []
-    for f in sorted(glob.glob(os.path.join(ldir, "*.md"))):
-        if f.endswith(".compactions.md"):
+    for name in st.listdir(f"log/{project}"):
+        if not name.endswith(".md") or name.endswith(".compactions.md"):
             continue
-        text = open(f, encoding="utf-8").read()
+        text = st.read(f"log/{project}/{name}") or ""
         ts = [m.group(3) for m in memmap.HDR.finditer(text) if m.group(3)]
-        rel = f"{project}/{os.path.basename(f)}"
-        meta = {}
-        mp = f[:-3] + ".meta.json"
-        if os.path.exists(mp):
-            meta = json.load(open(mp, encoding="utf-8"))
+        rel = f"{project}/{name}"
+        mt = st.read(f"log/{project}/{name[:-3]}.meta.json")
+        meta = json.loads(mt) if mt is not None else {}
         if ts:
             out.append({"file": rel, "start": min(ts), "end": max(ts), **meta})
         elif memmap.HDR.search(text):
             now = meta.get("logged_at") or time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
             out.append({"file": rel, "start": now, "end": now, "order_uncertain": True, **meta})
     out.sort(key=lambda s: s["start"])
-    mdir = os.path.join(store, "maps", project)
-    os.makedirs(mdir, exist_ok=True)
-    with open(os.path.join(mdir, "sources.json"), "w", encoding="utf-8") as f:
-        json.dump({"sources": out}, f, indent=1)
+    st.write(f"maps/{project}/sources.json", json.dumps({"sources": out}, indent=1))
     memmap._LOG_CACHE.clear()
     return out
 
 
 def load(store, project):
-    if not os.path.exists(os.path.join(store, "maps", project, "sources.json")):
+    if not as_store(store).exists(f"maps/{project}/sources.json"):
         refresh_sources(store, project)
     return memmap.load(store, project)
 
@@ -186,7 +180,7 @@ def status(store, project):
     lines = [f"project: {project}   store: {store}"]
     if not srcs:
         lines.append("nothing stored for this project yet.")
-        cc = claude_code_sessions(os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd())
+        cc = claude_code_sessions(os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()) if as_store(store).path else []
         if cc:
             lines.append(f"{len(cc)} Claude Code session file(s) for this folder exist on disk: "
                          "`remember ingest claude-code` brings them in.")
@@ -232,7 +226,7 @@ def claude_code_sessions(cwd):
 
 
 def ingest_claude_code(store, project, files):
-    out_dir = os.path.join(store, "log", project)
+    st = as_store(store)
     report = []
     for f in files:
         entries = list(capture.read_claude_code(f))
@@ -242,10 +236,8 @@ def ingest_claude_code(store, project, files):
         sid = os.path.splitext(os.path.basename(f))[0]
         day = next((e[3][:10] for e in entries if e[3]), "undated")
         session = f"cc-{day}-{sid[:8]}"
-        os.makedirs(out_dir, exist_ok=True)
-        with open(os.path.join(out_dir, ".lock"), "a+", encoding="utf-8") as lk:
-            memmap._lock(lk)  # Stop and SessionEnd hooks can fire together
-            new = capture.append_log(entries, out_dir, session)
+        with st.lock(f"log/{project}/.lock"):  # Stop and SessionEnd hooks can fire together
+            new = capture.append_log(entries, st, f"log/{project}", session)
         summaries = sum(1 for e in entries if e[1] == "summary")
         report.append(f"{session}: +{new} messages" + (f", {summaries} compaction summary(ies): earlier turns of this "
                                                        "session survive only as a summary" if summaries else ""))
@@ -269,14 +261,14 @@ def parse_conversation(text):
 
 def log_messages(store, project, session, msgs, source="recalled", note=None):
     """msgs: [(role, ts, text)]. Recalled = written from an agent's context, not a verbatim transcript."""
-    out_dir = os.path.join(store, "log", project)
+    st = as_store(store)
     session = slug(session)
     stamp = time.strftime("%Y%m%d%H%M%S", time.gmtime())
     # Saving the same conversation twice (an assistant saving at each pause, or a hook that already captured it)
     # must not duplicate it: skip messages whose text the project's log already holds for that speaker.
     norm = lambda s: " ".join((s or "").split())
     have = set()
-    if os.path.isdir(out_dir):
+    if st.isdir(f"log/{project}"):
         refresh_sources(store, project)
         have = {(r[3], norm(r[4])) for r in memmap.timeline(store, project)}
     fresh = [(r, ts, t) for r, ts, t in msgs
@@ -285,15 +277,12 @@ def log_messages(store, project, session, msgs, source="recalled", note=None):
     import hashlib
     entries = [(f"{source}:{session}:{stamp}:{i}:" + hashlib.sha1(f"{r}\n{t}".encode("utf-8")).hexdigest()[:12],
                 "msg", r, ts, t) for i, (r, ts, t) in enumerate(fresh)]
-    os.makedirs(out_dir, exist_ok=True)
-    with open(os.path.join(out_dir, ".lock"), "a+", encoding="utf-8") as lk:
-        memmap._lock(lk)
-        new = capture.append_log(entries, out_dir, session)
+    with st.lock(f"log/{project}/.lock"):
+        new = capture.append_log(entries, st, f"log/{project}", session)
     meta = {"source": source, "logged_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
     if note:
         meta["note"] = note
-    with open(os.path.join(out_dir, f"{session}.meta.json"), "w", encoding="utf-8") as f:
-        json.dump(meta, f)
+    st.write(f"log/{project}/{session}.meta.json", json.dumps(meta))
     refresh_sources(store, project)
     return f"{session}: +{new} messages ({source})" + (f", {skipped} already saved" if skipped else "")
 
@@ -340,15 +329,15 @@ def import_export(store, project, path, picks=None, list_only=False):
         if not m:
             raise SystemExit(f"no conversation matches {p!r}; run with --list")
         chosen += m
-    tmp = os.path.join(store, ".import-tmp.json")
-    os.makedirs(store, exist_ok=True)
-    with open(tmp, "w", encoding="utf-8") as f:
+    import tempfile
+    fd, tmp = tempfile.mkstemp(suffix=".json", prefix="remember-import-")
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
         json.dump(convs, f)
     report = []
     try:
         for c in {c["uuid"]: c for c in chosen}.values():
             session = "ai-" + slug((c.get("name") or "chat")[:40]) + "-" + c["uuid"][:6]
-            new = capture.append_log(list(capture.read_claude_export(tmp, c["uuid"])), os.path.join(store, "log", project), session)
+            new = capture.append_log(list(capture.read_claude_export(tmp, c["uuid"])), store, f"log/{project}", session)
             report.append(f"{session}: +{new} messages")
     finally:
         os.remove(tmp)
@@ -402,18 +391,19 @@ def builder_command(project):
     return None
 
 
-def _lock_path(store, project):
-    return os.path.join(store, "maps", project, ".building")
+def _lock_rel(project):
+    return f"maps/{project}/.building"
 
 
 def build_running(store, project):
-    lp = _lock_path(store, project)
-    return os.path.exists(lp) and time.time() - os.path.getmtime(lp) < 1800
+    m = as_store(store).mtime(_lock_rel(project))
+    return m is not None and time.time() - m < 1800
 
 
 def maybe_autobuild(store, project, reason=""):
     """Start a background map update when enough is unmapped. Returns a short note, or None."""
-    if autobuild_mode() != "background" or os.environ.get("REMEMBER_BUILDING") or not enabled(store, project):
+    if autobuild_mode() != "background" or os.environ.get("REMEMBER_BUILDING") or not as_store(store).path \
+            or not enabled(store, project):
         return None
     if build_running(store, project):
         return "a map update is running in the background"
@@ -421,13 +411,13 @@ def maybe_autobuild(store, project, reason=""):
     n = len(unmapped_msgs(g, memmap.timeline(store, project)))
     if n < (1 if reason in ("SessionEnd", "PreCompact") else AUTOBUILD_MIN) or not builder_command(project):
         return None
-    with open(_lock_path(store, project), "w", encoding="utf-8") as f:
-        json.dump({"started": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "unmapped": n, "reason": reason}, f)
+    as_store(store).write(_lock_rel(project), json.dumps({"started": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                                                          "unmapped": n, "reason": reason}))
     env = {k: v for k, v in os.environ.items() if k not in CHILD_ENV_DROP}
     env.update(REMEMBER_BUILDING="1", REMEMBER_PROJECT=project)
-    log = open(os.path.join(store, "build.log"), "a", encoding="utf-8")
+    log = open(os.path.join(as_store(store).path, "build.log"), "a", encoding="utf-8")
     kw = {"creationflags": 0x00000008 | 0x00000200} if os.name == "nt" else {"start_new_session": True}
-    subprocess.Popen([sys.executable, os.path.join(HERE, "cli.py"), "build", "--project", project], cwd=store, env=env,
+    subprocess.Popen([sys.executable, os.path.join(HERE, "cli.py"), "build", "--project", project], cwd=as_store(store).path, env=env,
                      stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT, **kw)
     return f"started a background map update for {n} unmapped messages"
 
@@ -442,14 +432,11 @@ def run_build(store, project):
     env.update(REMEMBER_BUILDING="1", REMEMBER_PROJECT=project)
     print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] build {project}: {os.path.basename(cmd[0])}", flush=True)
     try:
-        r = subprocess.run(cmd, cwd=store, env=env, stdin=subprocess.DEVNULL, capture_output=True, text=True,
+        r = subprocess.run(cmd, cwd=as_store(store).path, env=env, stdin=subprocess.DEVNULL, capture_output=True, text=True,
                            encoding="utf-8", errors="replace", timeout=3600)
         print((r.stdout or "").strip()[-2000:], (r.stderr or "").strip()[-1000:], sep="\n", flush=True)
     finally:
-        try:
-            os.remove(_lock_path(store, project))
-        except OSError:
-            pass
+        as_store(store).remove(_lock_rel(project))
         memmap._LOG_CACHE.clear()
         memmap.save_cache(store, project)
     print(status(store, project), flush=True)
@@ -460,7 +447,9 @@ def run_build(store, project):
 def show_map(store, project, open_browser=False):
     """Make sure the viewer is running (start it, or replace a stale one) and return its link."""
     import viewer
-    port = viewer.start(store)
+    if not as_store(store).path:
+        raise SystemExit("the map viewer runs on the user's computer; online, the map is on the remember.me website")
+    port = viewer.start(as_store(store).path)
     url = f"http://127.0.0.1:{port}/" + (f"?project={project}" if project else "")
     if open_browser:
         import webbrowser
@@ -495,12 +484,11 @@ def session_update_note(store, project, n, reason):
     if reason == "Stop":
         if n < AUTOBUILD_MIN:
             return None
-        mark = os.path.join(store, "maps", project, ".nudged")
-        last = int(open(mark, encoding="utf-8").read() or 0) if os.path.exists(mark) else 0
+        st, mark = as_store(store), f"maps/{project}/.nudged"
+        last = int(st.read(mark) or 0)
         if n < last + AUTOBUILD_MIN and last <= n:
             return None
-        with open(mark, "w", encoding="utf-8") as f:
-            f.write(str(n))
+        st.write(mark, str(n))
     return UPDATE_NOTE.format(n=n, p=project)
 
 
@@ -518,7 +506,7 @@ def hook(store):
         if enabled(store, project) and os.environ.get("REMEMBER_VIEWER", "1") != "0":
             try:
                 import viewer
-                viewer.start(store)
+                viewer.start(as_store(store).path)
             except BaseException:
                 pass
         if enabled(store, project):
@@ -554,13 +542,18 @@ def hook(store):
 
 # ---------------------------------------------------------------- main
 
-def main(argv=None):
+LOCAL_ONLY = ("hook", "install-cli", "mcp", "init", "ingest", "import", "build", "atlas", "viewer", "show", "serve")
+
+
+def main(argv=None, store=None):
+    """Run a command. `store` is where memory lives (default: the folder in REMEMBER_HOME, ~/.remember);
+    the online service passes the signed-in user's store."""
     for s in (sys.stdout, sys.stderr, sys.stdin):
         try:
             s.reconfigure(encoding="utf-8", errors="replace")
         except (AttributeError, ValueError):
             pass
-    store = store_dir()
+    store = as_store(store or store_dir())
     ap = argparse.ArgumentParser(prog="remember", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("cmd")
     ap.add_argument("args", nargs="*")
@@ -589,6 +582,8 @@ def main(argv=None):
     ap.add_argument("-i", action="store_true")
     a = ap.parse_args(argv)
     cmd = a.cmd
+    if cmd in LOCAL_ONLY and not store.path:
+        raise SystemExit(f"`{cmd}` works only with memory on the user's computer")
     try:
         p = resolve_project(store, a.project)
     except NoProject as e:
@@ -600,9 +595,7 @@ def main(argv=None):
         try:
             hook(store)
         except Exception as e:  # never break the user's session
-            os.makedirs(store, exist_ok=True)
-            with open(os.path.join(store, "hook.err"), "a", encoding="utf-8") as f:
-                f.write(f"{time.strftime('%Y-%m-%dT%H:%M:%S')} {e!r}\n")
+            store.append("hook.err", f"{time.strftime('%Y-%m-%dT%H:%M:%S')} {e!r}\n")
         return
     if cmd == "install-cli":
         win = os.name == "nt"
@@ -630,7 +623,7 @@ def main(argv=None):
         reg = _registry(store)
         reg[cwd] = slug(a.project) if a.project else reg.get(cwd, slug(os.path.basename(cwd)))
         _save_registry(store, reg)
-        os.makedirs(os.path.join(store, "log", reg[cwd]), exist_ok=True)
+        store.mkdir(f"log/{reg[cwd]}")
         snip = SNIPPET.format(cmd="remember")
         msg = f"project '{reg[cwd]}' ↔ {cwd}  (store {store})"
         if a.write:
@@ -675,7 +668,7 @@ def main(argv=None):
         return
     if cmd == "atlas":
         import viz
-        out = a.out or os.path.join(store, "atlas.html")
+        out = a.out or os.path.join(store.path, "atlas.html")
         with open(out, "w", encoding="utf-8") as f:
             f.write(viz.page(viz.build_data([p] if p and not a.all else None, store)))
         print(out)
@@ -687,16 +680,16 @@ def main(argv=None):
         import viewer
         sub = a.args[0] if a.args else "status"
         if sub == "start":
-            print(f"memory map viewer: http://127.0.0.1:{viewer.start(store)}")
+            print(f"memory map viewer: http://127.0.0.1:{viewer.start(store.path)}")
         elif sub == "stop":
-            print(viewer.stop(store))
+            print(viewer.stop(store.path))
         elif sub == "restart":
-            viewer.stop(store)
-            print(f"memory map viewer: http://127.0.0.1:{viewer.start(store)}")
+            viewer.stop(store.path)
+            print(f"memory map viewer: http://127.0.0.1:{viewer.start(store.path)}")
         elif sub == "status":
-            print(viewer.status(store))
+            print(viewer.status(store.path))
         elif sub == "autostart":
-            print(viewer.install_service(store) if (a.args[1:] or ["on"])[0] != "off" else viewer.uninstall_service())
+            print(viewer.install_service(store.path) if (a.args[1:] or ["on"])[0] != "off" else viewer.uninstall_service())
         else:
             raise SystemExit("remember viewer start | stop | restart | status | autostart [on|off]")
         return
@@ -707,7 +700,7 @@ def main(argv=None):
         import serve
         from http.server import ThreadingHTTPServer
         port = int(a.args[0]) if a.args else 8765
-        srv = ThreadingHTTPServer(("127.0.0.1", port), serve.make_handler(store))
+        srv = ThreadingHTTPServer(("127.0.0.1", port), serve.make_handler(store.path))
         url = f"http://127.0.0.1:{port}"
         print(f"remember.me atlas (live, all projects): {url}   Ctrl+C to stop")
         if a.open:
