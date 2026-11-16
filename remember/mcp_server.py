@@ -14,6 +14,7 @@ import cli
 import memmap
 
 PROTOCOL = "2025-06-18"
+VERSION = "0.2.0"
 
 S = {"type": "string"}
 PROJECT = {"project": {"type": "string", "description": "the name of what the user is working on (remember_projects lists existing ones). Needed unless the app runs in the project's own folder; the tool says so if it can't tell."}}
@@ -150,7 +151,7 @@ def call(store, name, args):
             return f"no Claude Code session files on this computer for {folder}"
         return cli.ingest_claude_code(store, cli.resolve_project(store, args.get("project"), cwd=folder), files)
     if name == "remember_guide":
-        return open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "guide.md"), encoding="utf-8").read()
+        return guide_text()
     if name == "remember_builder_prompt":
         return run(["builder-prompt"])
     if name == "remember_chunks":
@@ -169,6 +170,51 @@ def call(store, name, args):
     raise ValueError(f"unknown tool {name}")
 
 
+LOCAL_TOOLS = {"remember_show_map", "remember_viewer", "remember_import", "remember_ingest_sessions"}
+ONLINE_NOTE = ("You are connected to remember.me online: the user's memory is kept on the remember.me service under "
+               "their account, so it is the same from any device or assistant they connect. Tools that only exist on "
+               "the user's own computer (the local map viewer, importing files from their disk) are not available "
+               "here.\n\n")
+
+
+def guide_text(online=False):
+    text = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "guide.md"), encoding="utf-8").read()
+    return ONLINE_NOTE + text if online else text
+
+
+def respond(store, msg, online=False):
+    """One JSON-RPC message in, the response out (None for notifications). Shared by stdio and the online service."""
+    mid, method, params = msg.get("id"), msg.get("method"), msg.get("params") or {}
+    if mid is None:  # notification
+        return None
+    try:
+        if method == "initialize":
+            res = {"protocolVersion": params.get("protocolVersion") or PROTOCOL,
+                   "capabilities": {"tools": {}},
+                   "serverInfo": {"name": "remember-me", "version": VERSION},
+                   "instructions": guide_text(online)}
+        elif method == "ping":
+            res = {}
+        elif method == "tools/list":
+            res = {"tools": [t for t in _tool_defs() if not (online and t["name"] in LOCAL_TOOLS)]}
+        elif method == "tools/call":
+            name = params["name"]
+            try:
+                if online and name in LOCAL_TOOLS:
+                    raise ValueError(f"{name} works only with memory on the user's computer")
+                text = guide_text(online) if name == "remember_guide" else call(store, name, params.get("arguments") or {})
+                res = {"content": [{"type": "text", "text": text or "(empty)"}], "isError": False}
+            except Exception as e:  # tool errors go back to the model, not the protocol
+                res = {"content": [{"type": "text", "text": f"error: {e}"}], "isError": True}
+        else:
+            raise KeyError(method)
+        return {"jsonrpc": "2.0", "id": mid, "result": res}
+    except KeyError:
+        return {"jsonrpc": "2.0", "id": mid, "error": {"code": -32601, "message": f"method not found: {method}"}}
+    except Exception as e:
+        return {"jsonrpc": "2.0", "id": mid, "error": {"code": -32603, "message": str(e)}}
+
+
 def serve(store):
     memmap.TOOL_PREFIX = "remember_"
     cli.memmap.TOOL_PREFIX = "remember_"
@@ -180,31 +226,7 @@ def serve(store):
             msg = json.loads(line)
         except json.JSONDecodeError:
             continue
-        mid, method, params = msg.get("id"), msg.get("method"), msg.get("params") or {}
-        if mid is None:  # notification
-            continue
-        try:
-            if method == "initialize":
-                res = {"protocolVersion": params.get("protocolVersion") or PROTOCOL,
-                       "capabilities": {"tools": {}},
-                       "serverInfo": {"name": "remember-me", "version": "0.2.0"},
-                       "instructions": open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "guide.md"), encoding="utf-8").read()}
-            elif method == "ping":
-                res = {}
-            elif method == "tools/list":
-                res = {"tools": _tool_defs()}
-            elif method == "tools/call":
-                try:
-                    text = call(store, params["name"], params.get("arguments") or {})
-                    res = {"content": [{"type": "text", "text": text or "(empty)"}], "isError": False}
-                except Exception as e:  # tool errors go back to the model, not the protocol
-                    res = {"content": [{"type": "text", "text": f"error: {e}"}], "isError": True}
-            else:
-                raise KeyError(method)
-            out = {"jsonrpc": "2.0", "id": mid, "result": res}
-        except KeyError:
-            out = {"jsonrpc": "2.0", "id": mid, "error": {"code": -32601, "message": f"method not found: {method}"}}
-        except Exception as e:
-            out = {"jsonrpc": "2.0", "id": mid, "error": {"code": -32603, "message": str(e)}}
-        sys.stdout.write(json.dumps(out) + "\n")
-        sys.stdout.flush()
+        out = respond(store, msg)
+        if out is not None:
+            sys.stdout.write(json.dumps(out) + "\n")
+            sys.stdout.flush()

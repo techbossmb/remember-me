@@ -116,10 +116,11 @@ def resolve_project(store, explicit=None, cwd=None):
     Raises NoProject rather than guess when the folder can't say (never a silent 'default')."""
     if explicit:
         return slug(explicit)
-    if os.environ.get("REMEMBER_PROJECT"):
+    online = not as_store(store).path  # online, the server's own folder and settings say nothing about the user's work
+    if os.environ.get("REMEMBER_PROJECT") and not online:
         return slug(os.environ["REMEMBER_PROJECT"])
     cwd = os.path.abspath(cwd or os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd())
-    reg = _registry(store)
+    reg = {} if online else _registry(store)
     d = cwd
     while True:  # a subfolder belongs to its registered parent
         if d in reg:
@@ -128,7 +129,7 @@ def resolve_project(store, explicit=None, cwd=None):
         if nd == d:
             break
         d = nd
-    if _meaningless_folder(cwd) or slug(os.path.basename(cwd)) == "default":
+    if online or _meaningless_folder(cwd) or slug(os.path.basename(cwd)) == "default":
         ps = list_projects(store)
         have = ("Projects with memory: " + ", ".join(ps) + ". ") if ps else "No project has memory yet. "
         raise NoProject("Which project? This app doesn't say which folder or project you're in, so pass `project`: "

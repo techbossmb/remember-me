@@ -1,0 +1,16 @@
+# The plugin and the local CLI need only Python's standard library. These dependencies are for the online service
+# (online/main.py), deployed to FastAPI Cloud with `fastapi deploy` from this folder.
+[project]
+name = "remember-me"
+version = "0.2.0"
+description = "Long-term memory for AI assistants: a verbatim log plus a map of it."
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi[standard]>=0.115",
+    "psycopg[binary]>=3.2",
+    "psycopg-pool>=3.2",
+    "pyjwt[crypto]>=2.9",
+]
+
+[tool.fastapi]
+entrypoint = "online.main:app"
