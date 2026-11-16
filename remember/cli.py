@@ -73,6 +73,18 @@ def store_dir():
     return os.path.abspath(os.path.expanduser(os.environ.get("REMEMBER_HOME") or "~/.remember"))
 
 
+def default_store():
+    """Memory on this computer (REMEMBER_HOME, default ~/.remember), or, with REMEMBER_DATABASE_URL set, one user's
+    memory in Postgres (REMEMBER_USER) — the online service's storage, reachable from the CLI for admin and tests."""
+    url = os.environ.get("REMEMBER_DATABASE_URL")
+    if not url:
+        return as_store(store_dir())
+    import store_pg
+    conn = store_pg.connect(url)
+    store_pg.ensure_schema(conn)
+    return store_pg.PgStore(conn, os.environ.get("REMEMBER_USER") or "local")
+
+
 def slug(s):
     return re.sub(r"[^a-z0-9]+", "-", s.lower()).strip("-") or "default"
 
@@ -542,7 +554,7 @@ def hook(store):
 
 # ---------------------------------------------------------------- main
 
-LOCAL_ONLY = ("hook", "install-cli", "mcp", "init", "ingest", "import", "build", "atlas", "viewer", "show", "serve")
+LOCAL_ONLY = ("hook", "install-cli", "init", "ingest", "import", "build", "atlas", "viewer", "show", "serve")
 
 
 def main(argv=None, store=None):
@@ -553,7 +565,7 @@ def main(argv=None, store=None):
             s.reconfigure(encoding="utf-8", errors="replace")
         except (AttributeError, ValueError):
             pass
-    store = as_store(store or store_dir())
+    store = as_store(store) if store is not None else default_store()
     ap = argparse.ArgumentParser(prog="remember", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("cmd")
     ap.add_argument("args", nargs="*")

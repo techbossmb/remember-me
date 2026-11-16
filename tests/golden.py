@@ -16,6 +16,8 @@ import tempfile
 HERE = os.path.dirname(os.path.abspath(__file__))
 CLI = os.path.join(HERE, "..", "remember", "cli.py")
 GOLDEN = os.path.join(HERE, "golden.txt")
+PG = os.environ.get("REMEMBER_DATABASE_URL") if os.environ.get("REMEMBER_TEST_BACKEND") == "pg" else None
+sys.path.insert(0, os.path.join(HERE, "..", "remember"))
 
 CONV_A = """## user · 2026-09-01T10:00:00Z
 We need a memory system for agents. Keep the raw conversation verbatim and build a map over it, with every claim pointing back to the messages.
@@ -52,7 +54,7 @@ OPS = [
 
 
 def mask(s, store):
-    s = s.replace(store, "<STORE>")
+    s = s.replace("store: " + store, "store: <STORE>")
     s = re.sub(r"\b\d{14}\b", "<STAMP>", s)
     s = re.sub(r'"logged_at": "[^"]+"', '"logged_at": "<T>"', s)
     s = re.sub(r"\b20\d\d-\d\d-\d\dT\d\d:\d\d:\d\dZ\b(?!\S*#)", lambda m: m.group(0) if m.group(0).startswith("2026-09") else "<NOW>", s)
@@ -81,6 +83,10 @@ def scenario():
     store = tempfile.mkdtemp(prefix="remember-golden-")
     env = dict(os.environ, REMEMBER_HOME=store, REMEMBER_PROJECT="", REMEMBER_AUTOBUILD="off", REMEMBER_VIEWER="0")
     env.pop("REMEMBER_PROJECT")
+    env.pop("REMEMBER_DATABASE_URL", None)
+    if PG:  # same scenario against one fresh user in Postgres
+        env.update(REMEMBER_DATABASE_URL=PG, REMEMBER_USER="golden-" + os.path.basename(store))
+        store = "online"
     out = []
 
     def step(title, text):
@@ -117,18 +123,20 @@ def scenario():
                   ("remember_validate", {"project": "demo"}), ("remember_spans", {"project": "demo", "spans": ["demo/followup.md#m0003"]})])
     for i, t in enumerate(r):
         step(f"mcp b{i}", t)
-    # what the store holds (files backend layout = the export format)
-    if os.environ.get("REMEMBER_TEST_BACKEND", "files") == "files":
-        tree = []
+    # what the store holds: the same layout on both backends (it is also the export format)
+    if PG:
+        import store_pg
+        files = store_pg.PgStore(store_pg.connect(PG), env["REMEMBER_USER"]).walk()
+    else:
+        files = []
         for dp, dn, fn in sorted(os.walk(store)):
             dn.sort()
             for n in sorted(fn):
-                p = os.path.join(dp, n)
-                rel = os.path.relpath(p, store)
-                if n in (".lock",) or n.endswith(".state.json"):
-                    continue
-                tree.append(f"--- {rel}\n" + open(p, encoding="utf-8").read())
-        step("store files", "\n".join(tree))
+                files.append((os.path.relpath(os.path.join(dp, n), store).replace(os.sep, "/"),
+                              open(os.path.join(dp, n), encoding="utf-8").read()))
+    tree = [f"--- {rel}\n{text}" for rel, text in files
+            if not rel.endswith("/.lock") and not rel.endswith(".state.json") and not rel.endswith("/.building")]
+    step("store files", "\n".join(tree))
     return "\n".join(out) + "\n"
 
 
