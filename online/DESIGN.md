@@ -23,3 +23,11 @@ Companion to DESIGN.md. Supersedes DESIGN.md's "Rejected: hosted raw logs" and t
 - **Prepared for real merging later:** every map event now carries a globally unique `eid`. Two-way merge (writing the same project in both places at once) is deferred until someone needs it; it also needs thread-id remapping.
 - **Not yet in online mode on a computer:** importing a claude.ai export or Claude Code sessions (go offline, import, go back online); Claude Code hooks don't capture in online mode (the assistant saves through the tools).
 - Tests: `online/test_sync.py` runs a computer's local server against a running service: device sign-in, conflict refusal, pass-through, offline with read-only online copy (phone write refused, map marked), offline edits uploaded on return, remove-from-cloud and restore.
+
+## Launch pieces (2026-11-21)
+- **Name: remember-me** (user, 2026-11-21) everywhere users see it. Internal formats unchanged (raw-log header, viewer ping accepts both).
+- **One log file per chat:** `remember_log` requires a stable `session` name; no more shared "recalled" file.
+- **Account page** (`/account`): projects, download everything, bring memory in (claude.ai export or a `.remember` zip, parsed in the browser so only picked conversations/projects are sent; existing projects replaced only when asked), connected computers with remove, delete a project or everything (typed confirmation).
+- **Home** (`/`) with connect instructions; **privacy** (`/privacy`) drafted from the privacy stance, marked draft (needs a contact email and review).
+- **Imports while online on a computer:** read locally, sent to the account via `remember_log`, one log file per conversation.
+- **Directory listing** text in `docs/directory-listing.md`. Open: the manifest says MIT but there's no LICENSE file; license is the user's call.
