@@ -32,8 +32,25 @@ def connect(dsn):
     return psycopg.connect(dsn, autocommit=True)
 
 
+# Row-level security: the database itself only returns or changes the rows of the user named for the current
+# transaction (app.user_id), even if a query forgets its own user filter. FORCE makes it apply to the table's owner
+# too (the role the service connects as); only superusers bypass it, and the service never connects as one.
+RLS = """
+alter table rm_files enable row level security;
+alter table rm_files force row level security;
+do $$ begin
+    if not exists (select 1 from pg_policies where tablename = 'rm_files' and policyname = 'rm_files_own_rows') then
+        create policy rm_files_own_rows on rm_files
+            using (user_id = current_setting('app.user_id', true))
+            with check (user_id = current_setting('app.user_id', true));
+    end if;
+end $$;
+"""
+
+
 def ensure_schema(conn):
     conn.execute(SCHEMA)
+    conn.execute(RLS)
 
 
 class PgStore(Store):
@@ -51,22 +68,30 @@ class PgStore(Store):
     def __str__(self):
         return "online"
 
+    def _x(self, sql, args=()):
+        """Run one statement as this user: inside a transaction that first names the user for row-level security.
+        Per transaction, not per connection, because a pooler (Neon's) may hand each transaction a different one."""
+        with self.conn.transaction():
+            self.conn.execute("select set_config('app.user_id', %s, true)", (self.user,))
+            cur = self.conn.execute(sql, args)
+            return cur.fetchall() if cur.description else None
+
     def _one(self, sql, *args):
-        row = self.conn.execute(sql, (self.user, *args)).fetchone()
-        return row[0] if row else None
+        rows = self._x(sql, (self.user, *args))
+        return rows[0][0] if rows else None
 
     def read(self, rel):
         return self._one("select content from rm_files where user_id = %s and path = %s", rel)
 
     def write(self, rel, text):
-        self.conn.execute("insert into rm_files (user_id, path, content) values (%s, %s, %s) "
-                          "on conflict (user_id, path) do update set content = excluded.content, updated_at = now()",
-                          (self.user, rel, text))
+        self._x("insert into rm_files (user_id, path, content) values (%s, %s, %s) "
+                "on conflict (user_id, path) do update set content = excluded.content, updated_at = now()",
+                (self.user, rel, text))
 
     def append(self, rel, text):
-        self.conn.execute("insert into rm_files (user_id, path, content) values (%s, %s, %s) "
-                          "on conflict (user_id, path) do update set content = rm_files.content || excluded.content, "
-                          "updated_at = now()", (self.user, rel, text))
+        self._x("insert into rm_files (user_id, path, content) values (%s, %s, %s) "
+                "on conflict (user_id, path) do update set content = rm_files.content || excluded.content, "
+                "updated_at = now()", (self.user, rel, text))
 
     def exists(self, rel):
         return self._one("select exists(select 1 from rm_files where user_id = %s and (path = %s or path like %s))",
@@ -78,12 +103,12 @@ class PgStore(Store):
 
     def listdir(self, rel):
         prefix = rel + "/" if rel else ""
-        rows = self.conn.execute("select distinct split_part(substr(path, %s), '/', 1) from rm_files "
-                                 "where user_id = %s and path like %s", (len(prefix) + 1, self.user, _like(prefix)))
+        rows = self._x("select distinct split_part(substr(path, %s), '/', 1) from rm_files "
+                       "where user_id = %s and path like %s", (len(prefix) + 1, self.user, _like(prefix)))
         return sorted(r[0] for r in rows if r[0] and r[0] != KEEP)
 
     def remove(self, rel):
-        self.conn.execute("delete from rm_files where user_id = %s and path = %s", (self.user, rel))
+        self._x("delete from rm_files where user_id = %s and path = %s", (self.user, rel))
 
     def mtime(self, rel):
         v = self._one("select extract(epoch from updated_at) from rm_files where user_id = %s and path = %s", rel)
@@ -103,10 +128,10 @@ class PgStore(Store):
 
     def walk(self):
         """Every file of this user: [(path, content)], for export."""
-        return [tuple(r) for r in self.conn.execute(
+        return [tuple(r) for r in self._x(
             "select path, content from rm_files where user_id = %s and path not like %s order by path",
             (self.user, "%/" + KEEP))]
 
     def delete_all(self):
         """Delete everything this user has stored."""
-        self.conn.execute("delete from rm_files where user_id = %s", (self.user,))
+        self._x("delete from rm_files where user_id = %s", (self.user,))

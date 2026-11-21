@@ -14,7 +14,7 @@ import cli
 import memmap
 
 PROTOCOL = "2025-06-18"
-VERSION = "0.3.0"
+VERSION = "0.4.0"
 
 S = {"type": "string"}
 PROJECT = {"project": {"type": "string", "description": "the name of what the user is working on (remember_projects lists existing ones). Needed unless the app runs in the project's own folder; the tool says so if it can't tell."}}
@@ -172,9 +172,9 @@ def call(store, name, args):
 
 LOCAL_TOOLS = {"remember_show_map", "remember_viewer", "remember_import", "remember_ingest_sessions"}
 ONLINE_NOTE = ("You are connected to remember.me online: the user's memory is kept on the remember.me service under "
-               "their account, so it is the same from any device or assistant they connect. Tools that only exist on "
-               "the user's own computer (the local map viewer, importing files from their disk) are not available "
-               "here.\n\n")
+               "their account, so it is the same from any device or assistant they connect. Always pass `project`. "
+               "Tools that only exist on the user's own computer (local viewer controls, importing files from their "
+               "disk) are not available here.\n\n")
 
 
 def guide_text(online=False):

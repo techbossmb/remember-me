@@ -1,5 +1,6 @@
-remember.me keeps a project's conversations (verbatim) and a map of them, on the user's computer. Everything goes
-through the remember_* tools; they run where the memory lives, whatever assistant or app you are in. Pass `project`
+remember.me keeps a project's conversations (verbatim) and a map of them. Everything goes through the remember_*
+tools; they run where the memory lives (the user's computer, or their remember.me account online), whatever
+assistant or app you are in. Pass `project`
 (the name of what the user is working on; remember_projects lists existing ones; ask once if unclear).
 
 Using memory
@@ -10,13 +11,16 @@ Using memory
   with the log.
 
 Starting memory (when the user asks, or accepts the offer)
-1. remember_status says what exists. If Claude Code was used for this folder, remember_ingest_sessions brings those
-   sessions in.
+1. remember_status says what exists. If Claude Code was used for this folder and remember_ingest_sessions is
+   available, it brings those sessions in.
 2. Save what is in your context with remember_log: the conversation so far, user messages verbatim, your replies as
    written (long tool output summarised in a line), source "recalled".
 3. Say plainly what is missing: if your context starts with a summary of earlier turns, the verbatim start is gone.
-   A claude.ai data export can be imported selectively with remember_import (it lists conversations; the user picks).
+   Where remember_import is available, a claude.ai data export can be imported selectively (it lists
+   conversations; the user picks).
 4. Build the map (see "Updating the map"), then show it: remember_show_map returns a link for the user to click.
+Give each conversation its own `session` name (a date and a few words on its topic) and reuse it every time you
+save from that conversation, so each chat stays its own file in the log.
 
 Saving as you go
 - Save new turns with remember_log at natural pauses (after a task is done, before a long break, when the user says
@@ -30,7 +34,8 @@ Updating the map
   remember_apply_ops, then remember_coverage and remember_validate. Don't mention it unless asked.
 
 The map viewer
-- remember_show_map: start or reuse the viewer and give the user the link. remember_viewer: start, stop (works
-  wherever it was started), restart (if the link doesn't load), status, autostart_on/off (start at login; offer once).
+- remember_show_map gives the user a link to their map. Online it is a page they sign in to once and can bookmark.
+  On their computer it starts a local viewer; there, remember_viewer can also start, stop, restart (if the link
+  doesn't load), report status, or turn autostart at login on/off (offer once).
 
 Never ask the user to run commands; do it through the tools.

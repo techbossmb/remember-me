@@ -2,14 +2,18 @@
 
 Memory for AI assistants that survives compaction and new sessions: a verbatim log of your conversations, plus a map
 of it (threads with their decisions and open questions, standing rules, to-do lists, procedures), each entry pointing
-back to the exact messages it came from. Plain files on your own computer (`~/.remember`), shared by every assistant
-you use.
+back to the exact messages it came from. Shared by every assistant you connect.
+
+Two ways to keep it:
+- **Online** (recommended): your remember.me account, the same from any device or assistant, with a live map at
+  https://remember-me.fastapicloud.dev/map.
+- **On your computer**: plain files in `~/.remember`, nothing leaves the machine.
 
 **To set it up, tell your assistant:** "Set up remember.me from github.com/techbossmb/remember-me". It does the rest
 and tells you if it needs a click from you.
 
-> Early prototype. Works end to end in the Claude desktop app (macOS) and Claude Code. Gemini CLI, Copilot, Cursor and
-> Codex are wired up but not yet tested.
+> Early prototype. Online works end to end in the Claude app (web, desktop and phone); on-your-computer works in the
+> Claude desktop app (macOS) and Claude Code. Other assistants are wired up but not yet tested.
 
 ---
 
@@ -18,7 +22,24 @@ and tells you if it needs a click from you.
 You are setting this up for the user. Do every step yourself with your own tools. Ask the user only for what you
 can't do (a click in an app's settings), and then say exactly what to click. Don't hand them commands to run.
 
-### 1. Find which environment you're in, and follow that part
+### 1. Online (default; use this unless the user wants memory kept only on their computer)
+
+remember.me online is a remote MCP server with sign-in: `https://remember-me.fastapicloud.dev/mcp`. Signing in
+creates the user's account (Google, Microsoft, GitHub, Apple or email).
+
+- **Claude (app, web, phone):** you can't add a connector yourself. Tell the user:
+  > Settings → Connectors → Add custom connector. Name: `remember.me`, URL:
+  > `https://remember-me.fastapicloud.dev/mcp`. Add, then Connect and sign in. Then say "start memory for this
+  > project" in a new chat.
+- **Claude Code:** run `claude mcp add --transport http remember https://remember-me.fastapicloud.dev/mcp`; the user
+  signs in when prompted (`/mcp`).
+- **Other MCP clients** (Cursor, VS Code/Copilot, Gemini CLI, Codex): add a remote (HTTP) MCP server named `remember`
+  with that URL in the client's config; it handles sign-in. Not yet tested on these.
+
+Don't also install the on-your-computer version unless asked: two sets of `remember_*` tools in one session is
+confusing.
+
+### 1b. On the user's computer instead: find which environment you're in, and follow that part
 
 **Claude desktop app (Cowork / chat with plugins).** You can't add a plugin from GitHub yourself; it's a settings step.
 Tell the user, in these words or close to them:
@@ -48,7 +69,7 @@ command `python3` and args `["<home>/.remember-me/remember/cli.py", "mcp"]`, in 
 `python3 ~/.remember-me/remember/cli.py install-cli` (gives a `remember` command) and, in the user's project,
 `remember init --write` (adds a short memory note to AGENTS.md / GEMINI.md / Copilot instructions). Restart the client.
 
-### 2. Python
+### 2. Python (on the user's computer only)
 
 remember.me needs Python 3.9+ and nothing else. If you can run commands, check `python3 --version` (Windows:
 `python --version`).
