@@ -5,7 +5,8 @@ import sys
 import uuid
 
 run = uuid.uuid4().hex[:8]
-os.environ["REMEMBER_LINK_SECRET"] = "test-secret"
+os.environ["REMEMBER_SESSION_SECRET"] = "test-secret"
+os.environ["WORKOS_CLIENT_ID"] = "client_test"
 os.environ["REMEMBER_PUBLIC_URL"] = "http://testserver"
 os.environ["REMEMBER_DEV_TOKENS"] = f"tok-a=alice-{run},tok-b=bob-{run}"
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -86,12 +87,30 @@ check("bob can't read alice's garden", "Tomatoes" not in t and "mid April" not i
 t = tool(B, "remember_grep", project="garden", pattern="frost")
 check("bob can't grep alice's log", "planning.md" not in t, t)
 t = tool(A, "remember_show_map", project="garden")
-check("show_map gives a private link", "/map?t=" in t and "one hour" in t, t)
-link = t.split()[0].replace("http://testserver", "")
-r = c.get(link)
-check("map page renders alice's map", r.status_code == 200 and "Tomatoes" in r.text and "no-store" in r.headers.get("cache-control", ""), r.text[:200])
-check("tampered link refused", c.get(link[:-3] + "xyz").status_code == 403)
-check("bob's link doesn't show alice's garden", "Tomatoes" not in c.get(tool(B, "remember_show_map").split()[0].replace("http://testserver", "")).text)
+check("show_map gives the live map address", t.startswith("http://testserver/map"), t)
+r = c.get("/map", follow_redirects=False)
+check("map without sign-in -> /login", r.status_code == 303 and r.headers["location"] == "/login", str(r.status_code))
+r = c.get("/login", follow_redirects=False)
+check("login -> WorkOS AuthKit", "api.workos.com/user_management/authorize" in r.headers.get("location", "") and "rm_state" in r.headers.get("set-cookie", ""), str(r.headers))
+check("callback without state refused", c.get("/auth/callback?code=x&state=y").status_code == 400)
+check("api/data needs sign-in", c.get("/api/data").status_code == 401)
+alice_cookie = {"rm_session": main._sign({"u": f"alice-{run}", "exp": 9999999999})}
+bob_cookie = {"rm_session": main._sign({"u": f"bob-{run}", "exp": 9999999999})}
+c.cookies.clear(); c.cookies.update(alice_cookie)
+check("signed-in map page", c.get("/map").status_code == 200)
+d = c.get("/api/data").json()
+check("api/data has alice's garden", "garden" in d["projects"] and any(n["title"] == "Tomatoes" for n in d["projects"]["garden"]["graph"]["nodes"]), str(d)[:200])
+r = c.post("/api/op", json={"project": "garden", "op": {"op": "node.update", "id": "T1", "title": "Tomato plan"}})
+check("viewer edit applies", r.status_code == 200 and r.json()["ok"], r.text)
+check("edit shows in overview", "Tomato plan" in tool(A, "remember_overview", project="garden"))
+check("viewer can't add claims", c.post("/api/op", json={"project": "garden", "op": {"op": "claim.add", "node": "T1", "kind": "decision", "text": "x"}}).status_code == 400)
+check("other-site edit refused", c.post("/api/op", headers={"origin": "https://evil.example"}, json={"project": "garden", "op": {"op": "node.update", "id": "T1", "title": "x"}}).status_code == 403)
+forged = main._sign({"u": f"alice-{run}", "exp": 9999999999})[:-4] + "AAAA"
+c.cookies.clear(); c.cookies.update({"rm_session": forged})
+check("forged session refused", c.get("/api/data").status_code == 401)
+c.cookies.clear(); c.cookies.update(bob_cookie)
+check("bob's map page doesn't show alice's garden", "garden" not in c.get("/api/data").json()["projects"])
+c.cookies.clear()
 names2 = {t["name"] for t in rpc(A, "tools/list")["result"]["tools"]}
 check("show_map listed online", "remember_show_map" in names2)
 t = tool(A, "remember_viewer", action="status")

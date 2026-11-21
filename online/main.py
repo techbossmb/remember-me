@@ -53,8 +53,6 @@ DB_URL = os.environ.get("REMEMBER_DATABASE_URL", "")
 PUBLIC_URL = os.environ.get("REMEMBER_PUBLIC_URL", "").rstrip("/")
 ISSUER = os.environ.get("AUTH_ISSUER", "").rstrip("/")
 AUDIENCE = os.environ.get("AUTH_AUDIENCE") or None
-LINK_SECRET = os.environ.get("REMEMBER_LINK_SECRET", "").encode()
-LINK_TTL = 3600
 DEV_TOKENS = dict(x.split("=", 1) for x in os.environ.get("REMEMBER_DEV_TOKENS", "").split(",") if "=" in x)
 
 # ---------------------------------------------------------------- database
@@ -136,7 +134,7 @@ def user_for(token):
 
 
 def _base(request):
-    return PUBLIC_URL or (str(request.base_url).rstrip("/") if request else "")
+    return PUBLIC_URL or str(request.base_url).rstrip("/")
 
 
 def _unauthorized(request):
@@ -203,54 +201,146 @@ async def mcp(request: Request):
 def _handle(user, msg):
     with _tool_lock, pool().connection() as conn:
         memmap._LOG_CACHE.clear()  # another worker may have written since
-        return mcp_server.respond(store_pg.PgStore(conn, user), msg, online=True,
-                                  show_map=lambda project: _map_link(user, project) if LINK_SECRET else
-                                  "the map page isn't set up on this server yet (REMEMBER_LINK_SECRET)")
+        return mcp_server.respond(store_pg.PgStore(conn, user), msg, online=True, show_map=_show_map)
 
 # ---------------------------------------------------------------- map page
-# The map opens from a private link the assistant gets from remember_show_map: signed, for one user, valid an hour.
-# Anyone holding the link can view that map (including the messages behind it) until it expires.
+# A live, bookmarkable map at /map. The browser signs in with the same WorkOS account as the connector (AuthKit's
+# hosted page: Google and the rest), then stays signed in with a signed cookie. The page is the same viewer as the
+# local one: /api/data serves the signed-in user's maps, /api/op applies the viewer's few edits.
+
+WORKOS_CLIENT_ID = os.environ.get("WORKOS_CLIENT_ID", "")
+WORKOS_API_KEY = os.environ.get("WORKOS_API_KEY", "")
+SESSION_SECRET = os.environ.get("REMEMBER_SESSION_SECRET", "").encode()
+SESSION_DAYS = 30
+COOKIE = "rm_session"
+NOSTORE = {"Cache-Control": "no-store", "Referrer-Policy": "no-referrer", "X-Robots-Tag": "noindex"}
 
 
 def _b64(b):
     return base64.urlsafe_b64encode(b).rstrip(b"=").decode()
 
 
-def _map_link(user, project):
-    body = _b64(json.dumps({"u": user, "p": project or "", "exp": int(time.time()) + LINK_TTL}).encode())
-    sig = _b64(hmac.new(LINK_SECRET, body.encode(), hashlib.sha256).digest())
-    what = f"the {project} map" if project else "your memory maps"
-    return (f"{_base(None)}/map?t={body}.{sig}\n(Private link to {what}, valid for one hour; anyone with it can see "
-            "the map and the messages behind it until then.)")
+def _sign(d):
+    body = _b64(json.dumps(d).encode())
+    return body + "." + _b64(hmac.new(SESSION_SECRET, body.encode(), hashlib.sha256).digest())
 
 
-def _read_link(t):
+def _unsign(t):
     try:
         body, sig = t.split(".", 1)
-        want = _b64(hmac.new(LINK_SECRET, body.encode(), hashlib.sha256).digest())
-        if not LINK_SECRET or not hmac.compare_digest(sig, want):
+        want = _b64(hmac.new(SESSION_SECRET, body.encode(), hashlib.sha256).digest())
+        if not SESSION_SECRET or not hmac.compare_digest(sig, want):
             return None
         d = json.loads(base64.urlsafe_b64decode(body + "=" * (-len(body) % 4)))
-        return d if d["exp"] > time.time() else None
+        return d if d.get("exp", 0) > time.time() else None
     except Exception:
         return None
 
 
+def _web_user(request):
+    d = _unsign(request.cookies.get(COOKIE, ""))
+    return d["u"] if d else None
+
+
+def _user_id(sub):
+    """Same user id as the connector's tokens (user_for), so the page shows the memory the assistant writes."""
+    return hashlib.sha256(ISSUER.encode()).hexdigest()[:8] + ":" + str(sub)
+
+
+def _map_url(project=None):
+    return f"{PUBLIC_URL}/map"
+
+
+def _show_map(project):
+    return (f"{_map_url(project)}\nThe user's live memory map. It opens in any browser; the first time, they sign in "
+            "with the same account they connected remember.me with, and then stay signed in.")
+
+
 @app.get("/map")
-def map_page(t: str = ""):
-    d = _read_link(t)
-    headers = {"Cache-Control": "no-store", "Referrer-Policy": "no-referrer", "X-Robots-Tag": "noindex"}
-    if not d:
-        return HTMLResponse("<p>This map link has expired or isn't valid. Ask your assistant to show your map again.</p>",
-                            status_code=403, headers=headers)
+def map_page(request: Request):
+    if not _web_user(request):
+        return Response(status_code=303, headers={"Location": "/login", **NOSTORE})
+    return HTMLResponse(viz.page(), headers=NOSTORE)
+
+
+@app.get("/login")
+def login():
+    if not (WORKOS_CLIENT_ID and SESSION_SECRET):
+        return PlainTextResponse("Sign-in for the map page isn't set up on this server yet.", status_code=503)
+    import secrets
+    import urllib.parse
+    state = secrets.token_urlsafe(24)
+    q = urllib.parse.urlencode({"client_id": WORKOS_CLIENT_ID, "redirect_uri": f"{PUBLIC_URL}/auth/callback",
+                                "response_type": "code", "provider": "authkit", "state": state})
+    r = Response(status_code=303, headers={"Location": f"https://api.workos.com/user_management/authorize?{q}", **NOSTORE})
+    r.set_cookie("rm_state", state, max_age=600, httponly=True, secure=True, samesite="lax")
+    return r
+
+
+@app.get("/auth/callback")
+def auth_callback(request: Request, code: str = "", state: str = ""):
+    if not code or not state or not hmac.compare_digest(state, request.cookies.get("rm_state", "")):
+        return PlainTextResponse("Sign-in didn't complete. Open the map link again.", status_code=400, headers=NOSTORE)
+    import urllib.request
+    req = urllib.request.Request(
+        "https://api.workos.com/user_management/authenticate", method="POST",
+        data=json.dumps({"client_id": WORKOS_CLIENT_ID, "client_secret": WORKOS_API_KEY,
+                         "grant_type": "authorization_code", "code": code}).encode(),
+        headers={"Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            user = json.load(resp)["user"]
+    except Exception:
+        return PlainTextResponse("Sign-in failed. Try again.", status_code=502, headers=NOSTORE)
+    r = Response(status_code=303, headers={"Location": "/map", **NOSTORE})
+    r.set_cookie(COOKIE, _sign({"u": _user_id(user["id"]), "exp": int(time.time()) + SESSION_DAYS * 86400}),
+                 max_age=SESSION_DAYS * 86400, httponly=True, secure=True, samesite="lax")
+    r.delete_cookie("rm_state")
+    return r
+
+
+@app.get("/logout")
+def logout():
+    r = PlainTextResponse("Signed out of the remember.me map.", headers=NOSTORE)
+    r.delete_cookie(COOKIE)
+    return r
+
+
+@app.get("/api/data")
+def api_data(request: Request):
+    user = _web_user(request)
+    if not user:
+        return JSONResponse({"error": "sign in at /map"}, status_code=401, headers=NOSTORE)
     with _tool_lock, pool().connection() as conn:
         memmap._LOG_CACHE.clear()
-        st = store_pg.PgStore(conn, d["u"])
-        projects = [d["p"]] if d["p"] else None
-        if d["p"] and not st.exists(f"maps/{d['p']}/graph.json"):
-            return HTMLResponse(f"<p>No map for {d['p']} yet.</p>", status_code=404, headers=headers)
-        data = viz.build_data(projects, root=st)
-    return HTMLResponse(viz.page(data), headers=headers)
+        data = viz.build_data(None, root=store_pg.PgStore(conn, user))
+    return JSONResponse(data, headers=NOSTORE)
+
+
+@app.post("/api/op")
+async def api_op(request: Request):
+    user = _web_user(request)
+    if not user:
+        return JSONResponse({"error": "sign in at /map"}, status_code=401)
+    if request.headers.get("origin") not in (None, PUBLIC_URL):  # the cookie is SameSite=Lax; refuse other sites too
+        return JSONResponse({"error": "bad origin"}, status_code=403)
+    body = await request.json()
+    project, op = body.get("project"), body.get("op") or {}
+    if op.get("op") not in ("node.update", "node.merge", "node.move"):
+        return PlainTextResponse("only node.update, node.merge and node.move are allowed from the viewer", status_code=400)
+    import anyio
+
+    def apply():
+        with _tool_lock, pool().connection() as conn:
+            memmap._LOG_CACHE.clear()
+            st = store_pg.PgStore(conn, user)
+            (target, ev), = memmap.apply_ops(st, project, [op], by="user")
+            g = memmap.save_cache(st, target)
+            return {"ok": True, "seq": ev["seq"], "warnings": g["warnings"][-3:]}
+    try:
+        return JSONResponse(await anyio.to_thread.run_sync(apply))
+    except Exception as e:
+        return PlainTextResponse(f"{type(e).__name__}: {e}", status_code=400)
 
 
 @app.get("/mcp")
