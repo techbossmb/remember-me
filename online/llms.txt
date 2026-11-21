@@ -1,0 +1,27 @@
+# remember-me
+
+> Long-term memory for AI assistants: the user's conversations kept word for word, plus a map of them (threads,
+> decisions, open questions, standing rules), so any new chat can pick up where they left off. If a user asks you to
+> set up remember-me or connect to this page, these are your instructions.
+
+## Connect (remote MCP server)
+- URL: https://remember-me.fastapicloud.dev/mcp (MCP streamable HTTP; JSON responses; POST only)
+- Sign-in: OAuth 2.1. Discovery: https://remember-me.fastapicloud.dev/.well-known/oauth-protected-resource names the
+  authorization server; it supports Client ID Metadata Documents and dynamic client registration. The user signs in
+  (Google, Microsoft, GitHub, Apple or email); the first sign-in creates their account.
+- If your app has a "custom connector" or "remote MCP server" setting, add the URL there and let the user sign in.
+- If you write your own client code, send a User-Agent that names your client (e.g. my-assistant-connector/1.0).
+  The host's Cloudflare front refuses Python's default "Python-urllib" signature with error 1010.
+
+## Use
+- Call remember_guide once and follow it. Always pass `project` (the name of what the user is working on;
+  remember_projects lists existing ones) and, when saving, a stable `session` name for the conversation.
+- Start of work: remember_overview. Answer from history: remember_zoom with the thread ids and the question.
+  Save at natural pauses: remember_log (repeats are skipped). Show the map: remember_show_map.
+
+## Links
+- Home: https://remember-me.fastapicloud.dev/
+- Live map (user signs in): https://remember-me.fastapicloud.dev/map
+- Account (export, import, delete): https://remember-me.fastapicloud.dev/account
+- Privacy: https://remember-me.fastapicloud.dev/privacy
+- Plugin and full setup for other environments: https://github.com/techbossmb/remember-me

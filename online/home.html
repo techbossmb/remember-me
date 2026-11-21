@@ -49,6 +49,18 @@ nav{display:flex;gap:10px;flex-wrap:wrap;margin-top:28px}
 <li><b>Yours to take with you:</b> download everything as plain files, or keep it only on your own computer.</li>
 </ul>
 
+<h2>For AI assistants setting this up</h2>
+<div class="box">
+<p style="margin-top:0">If a user asked you to set up remember-me from this page:</p>
+<ul>
+<li>It's a remote MCP server at <code>https://remember-me.fastapicloud.dev/mcp</code> (streamable HTTP) with OAuth sign-in. Discovery: <code>/.well-known/oauth-protected-resource</code>; Client ID Metadata Documents and dynamic client registration are both supported.</li>
+<li>Add it wherever your app takes a custom connector or remote MCP server, and let the user sign in.</li>
+<li>If you call it with your own code, send a <code>User-Agent</code> that names your client (for example <code>my-assistant-connector/1.0</code>). Python's default <code>Python-urllib</code> signature is refused by the host with error 1010.</li>
+<li>Then call <code>remember_guide</code> and follow it: always pass <code>project</code>, and a stable <code>session</code> name per conversation when saving.</li>
+</ul>
+<p class="mut" style="margin-bottom:0">Plain-text version: <a href="/llms.txt">/llms.txt</a>. Other environments (Claude Code, the on-your-computer plugin): <a href="https://github.com/techbossmb/remember-me">GitHub README</a>.</p>
+</div>
+
 <p class="mut">Free during early access.</p>
 
 <nav><a class="btn primary" href="/map">Open my map</a><a class="btn" href="/account">Account</a><a class="btn" href="/privacy">Privacy</a><a class="btn" href="https://github.com/techbossmb/remember-me">GitHub</a></nav>

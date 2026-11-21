@@ -185,6 +185,12 @@ def home():
                              encoding="utf-8").read())
 
 
+@app.get("/llms.txt")
+def llms_txt():
+    return PlainTextResponse(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "llms.txt"),
+                                  encoding="utf-8").read())
+
+
 @app.get("/healthz")
 def healthz():
     return {"ok": True}
