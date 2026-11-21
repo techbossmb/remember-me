@@ -1,7 +1,8 @@
 {
   "name": "remember-me",
   "owner": {
-    "name": "remember-me"
+    "name": "remember-me",
+    "email": "isholabi@gmail.com"
   },
   "plugins": [
     {

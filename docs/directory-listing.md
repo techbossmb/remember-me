@@ -31,5 +31,9 @@ that save Claude Code sessions automatically.
 **Links:** homepage https://remember-me.fastapicloud.dev · source https://github.com/techbossmb/remember-me ·
 privacy https://remember-me.fastapicloud.dev/privacy
 
-**Before submitting:** contact email on the privacy page; WorkOS production with your own Google sign-in; confirm the
-license (the manifest says MIT, but the repo has no LICENSE file yet).
+**Pricing:** free during early access.
+
+**Contact:** isholabi@gmail.com. **License:** proprietary (source visible on GitHub so the plugin can be installed;
+all rights reserved).
+
+**Before submitting:** WorkOS production with your own Google sign-in; review the privacy page.

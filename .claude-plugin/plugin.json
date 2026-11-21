@@ -3,9 +3,10 @@
   "version": "0.6.0",
   "description": "Long-term memory for your assistant: keeps your conversations word for word and a map of what was decided, what's open and your standing rules, so any new chat can pick up where you left off. Online (any device) or on your own computer.",
   "author": {
-    "name": "remember-me"
+    "name": "remember-me",
+    "email": "isholabi@gmail.com"
   },
-  "license": "MIT",
+  "license": "Proprietary",
   "keywords": [
     "memory",
     "long-term memory",
