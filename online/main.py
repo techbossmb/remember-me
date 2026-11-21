@@ -64,10 +64,20 @@ def pool():
         if _pool is None:
             from psycopg_pool import ConnectionPool
             # autocommit like the CLI; no server-side prepared statements, so a transaction-mode pooler (Neon's) works
-            _pool = ConnectionPool(DB_URL, min_size=0, max_size=8, open=True,
-                                   kwargs={"autocommit": True, "prepare_threshold": None})
-            with _pool.connection() as c:
-                store_pg.ensure_schema(c)
+            p = ConnectionPool(DB_URL, min_size=0, max_size=8, open=True, timeout=30, reconnect_timeout=60,
+                               check=ConnectionPool.check_connection,  # drop connections Neon closed while asleep
+                               kwargs={"autocommit": True, "prepare_threshold": None})
+            for attempt in range(3):  # the first connection can fail while Neon wakes up
+                try:
+                    with p.connection() as c:
+                        store_pg.ensure_schema(c)
+                    break
+                except Exception:
+                    if attempt == 2:
+                        p.close()
+                        raise
+                    time.sleep(1 + attempt)
+            _pool = p
         return _pool
 
 
