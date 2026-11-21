@@ -97,6 +97,13 @@ always running, ask "keep my memory map running"; to stop it, ask "stop my memor
 still on disk). For older claude.ai chats, export your data (claude.ai → Settings → Privacy → Export data) and ask
 your assistant to import it. It lists the conversations so you pick only the ones for this project.
 
+**Switching between online and on-your-computer:** on a computer with the plugin, say "go offline" or "go back
+online". The first time, your assistant shows you a link to allow that computer into your account. Going offline you
+choose: keep a read-only copy online while you're away, or remove it from the cloud. Going back online uploads what
+changed. A project lives in one place at a time, so nothing ever needs merging; while a project is offline, your other
+devices can read it (if you kept the copy) but not change it. Offline, the map is the viewer on that computer; online
+it's https://remember-me.fastapicloud.dev/map.
+
 **Updates** come from GitHub. In the Claude app plugins sync automatically (or tap Sync under Customize → Plugins).
 A new chat gets an update right away; an open chat gets it after you fully quit and reopen the app. Your memory is
 the same files either way.

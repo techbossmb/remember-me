@@ -265,15 +265,15 @@ Rule for every project: never ask the user to run terminal commands; the assista
 --- log/demo/followup.meta.json
 {"source": "recalled", "logged_at": "<T>"}
 --- maps/demo/events.jsonl
-{"op": "node.create", "id": "T1", "type": "thread", "title": "Memory design", "status": "active", "summary": "Verbatim log plus an event-sourced map", "src": "demo/design.md#m0001-m0002", "at": "2026-09-01T10:00:00Z", "by": "builder", "seq": 1}
-{"op": "claim.add", "node": "T1", "kind": "decision", "text": "Log as markdown per session; map as replayed events", "spans": ["demo/design.md#m0002"], "src": "demo/design.md#m0002", "at": "2026-09-01T10:01:00Z", "by": "builder", "seq": 2}
-{"op": "node.create", "id": "T2", "type": "thread", "title": "Map viewer", "status": "active", "summary": "Local viewer that gives a link", "src": "demo/design.md#m0003-m0004", "at": "2026-09-01T10:05:00Z", "by": "builder", "seq": 3}
-{"op": "claim.add", "node": "T2", "kind": "decision", "cid": "T2.d1", "text": "Viewer gives a link and never auto-opens", "spans": ["demo/design.md#m0003"], "src": "demo/design.md#m0003", "at": "2026-09-01T10:05:00Z", "by": "builder", "seq": 4}
-{"op": "claim.add", "node": "T2", "kind": "open", "cid": "T2.o1", "text": "Should the viewer start on login?", "spans": ["demo/design.md#m0004"], "src": "demo/design.md#m0004", "at": "2026-09-01T10:06:00Z", "by": "builder", "seq": 5}
-{"op": "claim.supersede", "id": "T2.o1", "reason": "resolved: autostart option added", "new": {"kind": "decision", "text": "Viewer starts with each session; optional start at login", "spans": ["demo/followup.md#m0001-m0002"]}, "src": "demo/followup.md#m0001", "at": "2026-09-03T09:00:00Z", "by": "builder", "seq": 6}
-{"op": "edge.add", "from": "T2", "to": "T1", "type": "depends_on", "src": "demo/followup.md#m0001", "at": "2026-09-03T09:00:00Z", "by": "builder", "seq": 7}
-{"op": "rule.add", "id": "R1", "scope": "user", "text": "Never ask the user to run terminal commands", "spans": ["demo/followup.md#m0003"], "src": "demo/followup.md#m0003", "at": "2026-09-03T09:10:00Z", "by": "builder", "seq": 8}
-{"op": "node.update", "id": "T1", "status": "done", "src": "demo/followup.md#m0003", "at": "2026-09-03T09:10:00Z", "by": "builder", "seq": 9}
+{"op": "node.create", "id": "T1", "type": "thread", "title": "Memory design", "status": "active", "summary": "Verbatim log plus an event-sourced map", "src": "demo/design.md#m0001-m0002", "at": "2026-09-01T10:00:00Z", "by": "builder", "seq": 1, "eid": "<EID>"}
+{"op": "claim.add", "node": "T1", "kind": "decision", "text": "Log as markdown per session; map as replayed events", "spans": ["demo/design.md#m0002"], "src": "demo/design.md#m0002", "at": "2026-09-01T10:01:00Z", "by": "builder", "seq": 2, "eid": "<EID>"}
+{"op": "node.create", "id": "T2", "type": "thread", "title": "Map viewer", "status": "active", "summary": "Local viewer that gives a link", "src": "demo/design.md#m0003-m0004", "at": "2026-09-01T10:05:00Z", "by": "builder", "seq": 3, "eid": "<EID>"}
+{"op": "claim.add", "node": "T2", "kind": "decision", "cid": "T2.d1", "text": "Viewer gives a link and never auto-opens", "spans": ["demo/design.md#m0003"], "src": "demo/design.md#m0003", "at": "2026-09-01T10:05:00Z", "by": "builder", "seq": 4, "eid": "<EID>"}
+{"op": "claim.add", "node": "T2", "kind": "open", "cid": "T2.o1", "text": "Should the viewer start on login?", "spans": ["demo/design.md#m0004"], "src": "demo/design.md#m0004", "at": "2026-09-01T10:06:00Z", "by": "builder", "seq": 5, "eid": "<EID>"}
+{"op": "claim.supersede", "id": "T2.o1", "reason": "resolved: autostart option added", "new": {"kind": "decision", "text": "Viewer starts with each session; optional start at login", "spans": ["demo/followup.md#m0001-m0002"]}, "src": "demo/followup.md#m0001", "at": "2026-09-03T09:00:00Z", "by": "builder", "seq": 6, "eid": "<EID>"}
+{"op": "edge.add", "from": "T2", "to": "T1", "type": "depends_on", "src": "demo/followup.md#m0001", "at": "2026-09-03T09:00:00Z", "by": "builder", "seq": 7, "eid": "<EID>"}
+{"op": "rule.add", "id": "R1", "scope": "user", "text": "Never ask the user to run terminal commands", "spans": ["demo/followup.md#m0003"], "src": "demo/followup.md#m0003", "at": "2026-09-03T09:10:00Z", "by": "builder", "seq": 8, "eid": "<EID>"}
+{"op": "node.update", "id": "T1", "status": "done", "src": "demo/followup.md#m0003", "at": "2026-09-03T09:10:00Z", "by": "builder", "seq": 9, "eid": "<EID>"}
 
 --- maps/demo/graph.json
 {

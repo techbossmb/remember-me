@@ -511,6 +511,9 @@ def hook(store):
         return  # the background builder's own session: don't capture or inject
     event = data.get("hook_event_name", "")
     cwd = data.get("cwd") or os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()
+    import sync
+    if sync.mode(store) == "online":  # memory is in the account; the assistant saves through the tools
+        return
     try:
         project = resolve_project(store, cwd=cwd)
     except NoProject:

@@ -52,6 +52,7 @@ import json
 import os
 import re
 import sys
+import uuid
 
 from store import as_store
 
@@ -188,6 +189,7 @@ def append_event(root, project, ev):
     with st.lock(_events_rel(target)):  # several builders/sessions may write at once
         seqs = [json.loads(l)["seq"] for l in (st.read(_events_rel(target)) or "").splitlines() if l.strip()]
         ev["seq"] = max(seqs, default=0) + 1
+        ev.setdefault("eid", uuid.uuid4().hex)  # globally unique: lets a future sync tell events apart
         if target != project:
             ev["origin_project"] = project
         st.append(_events_rel(target), json.dumps(ev, ensure_ascii=False) + "\n")

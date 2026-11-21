@@ -202,7 +202,7 @@ function load(name){
   document.querySelectorAll("#projTabs button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.p===name));
   const open=G.nodes.reduce((a,n)=>a+(n.open_questions||[]).length,0), msgs=Object.values(P.logs).reduce((a,l)=>a+l.length,0);
   $("#stats").innerHTML=`<span>${G.nodes.length} nodes</span><span>${(G.rules||[]).filter(r=>r.status!=="superseded").length} rules</span><span>${open} open questions</span><span>${msgs} messages in raw log</span>`;
-  $("#built").textContent=`built ${G.built||"?"}`;
+  $("#built").textContent=P.held?`read-only · this project is offline on ${P.held.device} (since ${(P.held.since||"").slice(0,10)})`:`built ${G.built||"?"}`;
   $("#render").textContent=P.render; $("#renderSize").textContent=`${P.render.length.toLocaleString()} chars ≈ ${Math.round(P.render.length/4).toLocaleString()} tokens`;
   layout(); drawTree(); drawGraph(); showRules(); $("#q").value=""; fit();
 }
@@ -350,7 +350,7 @@ function dossier(n){
    ${parent||edges.length?`<div class="sec edges"><h4>Connections</h4><ul>${parent?`<li style="--c:var(--line)">part of <a data-go="${esc(parent.src)}">${esc(byId[parent.src]?.title||parent.src)}</a></li>`:""}${edges.map(e=>{const t=EDGE[e.type]||EDGE.related, out=e.src===n.id, o=out?e.dst:e.src;
       return `<li style="--c:var(${t[0]})">${out?esc(t[1]):"← "+esc(t[1])} <a data-go="${esc(o)}">${esc(byId[o]?.title||o)}</a>${e.note?` <span class="why">(${esc(e.note)})</span>`:""}</li>`}).join("")}</ul></div>`:""}
    <div class="sec"><h4>Where it lives in the raw log</h4><div>${spanBtns(n.spans)||'<span class="why">no spans</span>'}</div></div>
-   ${LIVE?`<div class="sec editbox"><h4>Edit</h4>
+   ${LIVE&&!P.held?`<div class="sec editbox"><h4>Edit</h4>
      <div class="erow"><label for="eStatus">Status</label><select id="eStatus">${STATUS.map(s=>`<option ${s===n.status?"selected":""}>${s}</option>`).join("")}</select><button data-act="status">Set</button></div>
      <div class="erow"><label for="eTitle">Title</label><input id="eTitle" value="${esc(n.title)}"><button data-act="title">Rename</button></div>
      <div class="erow"><label for="eMerge">Merge into</label><select id="eMerge"><option value="">choose…</option>${others.map(m=>`<option value="${esc(m.id)}">${esc(m.id)} · ${esc(m.title)}</option>`).join("")}</select><button data-act="merge">Merge</button></div>

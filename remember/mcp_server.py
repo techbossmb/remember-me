@@ -14,7 +14,7 @@ import cli
 import memmap
 
 PROTOCOL = "2025-06-18"
-VERSION = "0.4.0"
+VERSION = "0.5.0"
 
 S = {"type": "string"}
 PROJECT = {"project": {"type": "string", "description": "the name of what the user is working on (remember_projects lists existing ones). Needed unless the app runs in the project's own folder; the tool says so if it can't tell."}}
@@ -51,6 +51,15 @@ TOOLS = [
      {"path": S, "picks": {"type": "array", "items": S}}, ["path"]),
     ("remember_ingest_sessions", "Bring in Claude Code session files already on the user's computer for a folder "
      "(only useful where Claude Code has been used).", {"folder": S}, []),
+    ("remember_mode", "Where this computer keeps the user's memory: here (offline) or in their remember.me account "
+     "(online, the same on every device), and switching. Actions: status; connect, then connect_finish once the user "
+     "has pressed Allow (signs this computer in to their account, once); go_online (uploads what this computer holds; "
+     "replace=[projects] when the user chose this computer's copy over a different online one); go_offline (downloads "
+     "projects here; keep_online=false removes them from the cloud, true keeps a read-only copy online). The first "
+     "time someone goes offline, ask which they want.",
+     {"action": {"type": "string", "enum": ["status", "connect", "connect_finish", "go_online", "go_offline"]},
+      "keep_online": {"type": "boolean"}, "projects": {"type": "array", "items": S},
+      "replace": {"type": "array", "items": S}}, ["action"]),
     ("remember_builder_prompt", "Instructions for building or updating the map from the raw log (chunk by chunk).", {}, []),
     ("remember_chunks", "List replay chunks for the builder; new_only lists only what is not mapped yet.",
      {"new_only": {"type": "boolean"}}, []),
@@ -72,6 +81,7 @@ ADDS = {"remember_log", "remember_import", "remember_ingest_sessions"}
 # nothing is lost (the log itself is never touched). It is not safe to repeat blindly, hence not idempotent.
 # remember_show_map / remember_viewer start, stop or schedule the local viewer: no memory changes.
 LOCAL_PROCESS = {"remember_show_map", "remember_viewer"}
+MOVES = {"remember_mode"}  # moves projects between this computer and the account; nothing is deleted without a copy
 
 
 def _annotations(name):
@@ -79,6 +89,8 @@ def _annotations(name):
         return {"readOnlyHint": True, "openWorldHint": False}
     if name in ADDS:
         return {"readOnlyHint": False, "destructiveHint": False, "idempotentHint": True, "openWorldHint": False}
+    if name in MOVES:
+        return {"readOnlyHint": False, "destructiveHint": False, "idempotentHint": False, "openWorldHint": True}
     if name in LOCAL_PROCESS:
         return {"readOnlyHint": False, "destructiveHint": False, "idempotentHint": True, "openWorldHint": False}
     return {"readOnlyHint": False, "destructiveHint": False, "idempotentHint": False, "openWorldHint": False}
@@ -152,6 +164,24 @@ def call(store, name, args):
         return cli.ingest_claude_code(store, cli.resolve_project(store, args.get("project"), cwd=folder), files)
     if name == "remember_guide":
         return guide_text()
+    if name == "remember_mode":
+        import sync
+        act = args["action"]
+        if act == "status":
+            return sync.status(store)
+        if act == "connect":
+            return sync.connect(store)
+        if act == "connect_finish":
+            return sync.connect_finish(store)
+        if act == "go_online":
+            return sync.go_online(store, replace=tuple(cli.slug(p) for p in args.get("replace") or ()))
+        if act == "go_offline":
+            if "keep_online" not in args:
+                raise ValueError("ask the user first: keep a read-only copy in the cloud while offline "
+                                 "(keep_online=true), or remove it from the cloud (keep_online=false)?")
+            return sync.go_offline(store, keep_online=bool(args["keep_online"]),
+                                   projects=[cli.slug(p) for p in args.get("projects") or []] or None)
+        raise ValueError(f"unknown action {act}")
     if name == "remember_builder_prompt":
         return run(["builder-prompt"])
     if name == "remember_chunks":
@@ -170,7 +200,7 @@ def call(store, name, args):
     raise ValueError(f"unknown tool {name}")
 
 
-LOCAL_TOOLS = {"remember_show_map", "remember_viewer", "remember_import", "remember_ingest_sessions"}
+LOCAL_TOOLS = {"remember_show_map", "remember_viewer", "remember_import", "remember_ingest_sessions", "remember_mode"}
 ONLINE_NOTE = ("You are connected to remember.me online: the user's memory is kept on the remember.me service under "
                "their account, so it is the same from any device or assistant they connect. Always pass `project`. "
                "Tools that only exist on the user's own computer (local viewer controls, importing files from their "
@@ -182,7 +212,10 @@ def guide_text(online=False):
     return ONLINE_NOTE + text if online else text
 
 
-def respond(store, msg, online=False, show_map=None):
+WRITE_TOOLS = {"remember_log", "remember_apply_ops"}
+
+
+def respond(store, msg, online=False, show_map=None, readonly=None):
     """One JSON-RPC message in, the response out (None for notifications). Shared by stdio and the online service.
     Online, `show_map(project or None)` returns a private link to the hosted map page."""
     local_only = LOCAL_TOOLS - ({"remember_show_map"} if show_map else set())
@@ -205,6 +238,8 @@ def respond(store, msg, online=False, show_map=None):
                 args = params.get("arguments") or {}
                 if online and name in local_only:
                     raise ValueError(f"{name} works only with memory on the user's computer")
+                if readonly and name in WRITE_TOOLS and args.get("project") and cli.slug(args["project"]) in readonly:
+                    raise ValueError(readonly[cli.slug(args["project"])])
                 if online and name == "remember_show_map":
                     text = show_map(args.get("project"))
                 else:
@@ -221,6 +256,24 @@ def respond(store, msg, online=False, show_map=None):
         return {"jsonrpc": "2.0", "id": mid, "error": {"code": -32603, "message": str(e)}}
 
 
+def _local_or_forward(store, msg):
+    """On a computer in online mode, memory tools go to the user's account; switching and the guide stay here."""
+    import sync
+    if msg.get("method") != "tools/call" or msg.get("id") is None or sync.mode(store) != "online":
+        return respond(store, msg)
+    name = (msg.get("params") or {}).get("name")
+    if name in ("remember_mode", "remember_guide"):
+        return respond(store, msg)
+    if name == "remember_viewer":
+        text = f"memory is online, so the map is at {sync.server(store)}/map (no local viewer needed)"
+        return {"jsonrpc": "2.0", "id": msg["id"], "result": {"content": [{"type": "text", "text": text}], "isError": False}}
+    if name in ("remember_import", "remember_ingest_sessions"):
+        text = ("error: importing works with memory on this computer for now: go offline (remember_mode go_offline), "
+                "import, then go back online")
+        return {"jsonrpc": "2.0", "id": msg["id"], "result": {"content": [{"type": "text", "text": text}], "isError": True}}
+    return sync.forward(store, msg)
+
+
 def serve(store):
     memmap.TOOL_PREFIX = "remember_"
     cli.memmap.TOOL_PREFIX = "remember_"
@@ -232,7 +285,7 @@ def serve(store):
             msg = json.loads(line)
         except json.JSONDecodeError:
             continue
-        out = respond(store, msg)
+        out = _local_or_forward(store, msg)
         if out is not None:
             sys.stdout.write(json.dumps(out) + "\n")
             sys.stdout.flush()

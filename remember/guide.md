@@ -33,6 +33,15 @@ Updating the map
   Follow remember_builder_prompt: remember_chunks(new_only=true), then for each chunk remember_chunk and
   remember_apply_ops, then remember_coverage and remember_validate. Don't mention it unless asked.
 
+Online and offline
+- Memory lives either in the user's remember.me account (online: the same on every device) or on one computer
+  (offline). On a computer running the local remember.me server, remember_mode moves it: status says where it is;
+  connect (once) gives the user a link to allow this computer, then connect_finish; go_online and go_offline switch.
+- The first time someone goes offline, ask which they mean: keep a read-only copy online while away
+  (keep_online=true), or remove it from the cloud (keep_online=false). If go_online reports a conflict (different
+  copies here and online), ask which to keep; replace=[project] makes this computer's copy the online one.
+- A project that another computer has taken offline is read-only online; say so plainly if a save is refused.
+
 The map viewer
 - remember_show_map gives the user a link to their map. Online it is a page they sign in to once and can bookmark.
   On their computer it starts a local viewer; there, remember_viewer can also start, stop, restart (if the link

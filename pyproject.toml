@@ -2,7 +2,7 @@
 # (online/main.py), deployed to FastAPI Cloud with `fastapi deploy` from this folder.
 [project]
 name = "remember-me"
-version = "0.4.0"
+version = "0.5.0"
 description = "Long-term memory for AI assistants: a verbatim log plus a map of it."
 requires-python = ">=3.10"
 dependencies = [

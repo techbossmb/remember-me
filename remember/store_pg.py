@@ -132,6 +132,14 @@ class PgStore(Store):
             "select path, content from rm_files where user_id = %s and path not like %s order by path",
             (self.user, "%/" + KEEP))]
 
+    def files(self, prefix):
+        """[(path, content)] of this user's files under a path prefix (e.g. 'log/<project>/')."""
+        return [tuple(r) for r in self._x("select path, content from rm_files where user_id = %s and path like %s "
+                                          "order by path", (self.user, _like(prefix)))]
+
+    def delete_prefix(self, prefix):
+        self._x("delete from rm_files where user_id = %s and path like %s", (self.user, _like(prefix)))
+
     def delete_all(self):
         """Delete everything this user has stored."""
         self._x("delete from rm_files where user_id = %s", (self.user,))

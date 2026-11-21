@@ -74,6 +74,7 @@ def pool():
                 try:
                     with p.connection() as c:
                         store_pg.ensure_schema(c)
+                        c.execute(ACCOUNT_SCHEMA)
                     break
                 except Exception:
                     if attempt == 2:
@@ -83,6 +84,20 @@ def pool():
             _pool = p
         return _pool
 
+
+# Account-level tables (no conversation content): computers signed in with the device flow, and projects a computer
+# has taken offline ("held"). Queries on them always filter by user id in this file.
+ACCOUNT_SCHEMA = """
+create table if not exists rm_device_codes (
+    device_code text primary key, user_code text unique not null, name text not null,
+    user_id text, token text, expires timestamptz not null, created timestamptz not null default now());
+create table if not exists rm_tokens (
+    token_hash text primary key, user_id text not null, device_id text not null, name text not null,
+    created timestamptz not null default now(), last_used timestamptz);
+create table if not exists rm_holds (
+    user_id text not null, project text not null, device_id text not null, device_name text not null,
+    keep_online boolean not null, since timestamptz not null default now(), primary key (user_id, project));
+"""
 
 # The tool code was written for one process per user (stdio): it prints into a captured buffer and keeps a per-process
 # parse cache. Until that's reworked, tool calls run one at a time in each worker. Fine for a proof of concept.
@@ -114,10 +129,24 @@ def _jwks_client():
     return _jwks
 
 
+def principal(token):
+    """(user id, device) for a bearer token, or (None, None). device is {"id", "name"} for a signed-in computer
+    (device token), else None (a connector's sign-in)."""
+    if token and token.startswith("rmd_"):
+        h = hashlib.sha256(token.encode()).hexdigest()
+        with pool().connection() as c:
+            row = c.execute("update rm_tokens set last_used = now() where token_hash = %s "
+                            "returning user_id, device_id, name", (h,)).fetchone()
+        return (row[0], {"id": row[1], "name": row[2]}) if row else (None, None)
+    return user_for(token), None
+
+
 def user_for(token):
     """The user id a bearer token belongs to, or None if it isn't valid."""
     if not token:
         return None
+    if token.startswith("rmd_"):
+        return principal(token)[0]
     if token in DEV_TOKENS:
         return DEV_TOKENS[token]
     if not ISSUER:
@@ -198,10 +227,19 @@ async def mcp(request: Request):
     return JSONResponse(out)
 
 
+def _holds(conn, user):
+    return {r[0]: {"device": r[1], "since": r[2].isoformat(), "keep_online": r[3]} for r in conn.execute(
+        "select project, device_name, since, keep_online from rm_holds where user_id = %s", (user,))}
+
+
 def _handle(user, msg):
     with _tool_lock, pool().connection() as conn:
         memmap._LOG_CACHE.clear()  # another worker may have written since
-        return mcp_server.respond(store_pg.PgStore(conn, user), msg, online=True, show_map=_show_map)
+        held = {p: f"{p} is offline on {h['device']} (since {h['since'][:10]}); it's read-only here until that "
+                   "computer brings it back online. Save to it there, or ask the user to go back online first."
+                for p, h in _holds(conn, user).items()}
+        return mcp_server.respond(store_pg.PgStore(conn, user), msg, online=True, show_map=_show_map,
+                                  readonly=held)
 
 # ---------------------------------------------------------------- map page
 # A live, bookmarkable map at /map. The browser signs in with the same WorkOS account as the connector (AuthKit's
@@ -259,12 +297,12 @@ def _show_map(project):
 @app.get("/map")
 def map_page(request: Request):
     if not _web_user(request):
-        return Response(status_code=303, headers={"Location": "/login", **NOSTORE})
+        return Response(status_code=303, headers={"Location": "/login?next=/map", **NOSTORE})
     return HTMLResponse(viz.page(), headers=NOSTORE)
 
 
 @app.get("/login")
-def login():
+def login(next: str = "/map"):
     if not (WORKOS_CLIENT_ID and SESSION_SECRET):
         return PlainTextResponse("Sign-in for the map page isn't set up on this server yet.", status_code=503)
     import secrets
@@ -274,6 +312,8 @@ def login():
                                 "response_type": "code", "provider": "authkit", "state": state})
     r = Response(status_code=303, headers={"Location": f"https://api.workos.com/user_management/authorize?{q}", **NOSTORE})
     r.set_cookie("rm_state", state, max_age=600, httponly=True, secure=True, samesite="lax")
+    r.set_cookie("rm_next", next if next.startswith("/") and not next.startswith("//") else "/map",
+                 max_age=600, httponly=True, secure=True, samesite="lax")
     return r
 
 
@@ -292,7 +332,10 @@ def auth_callback(request: Request, code: str = "", state: str = ""):
             user = json.load(resp)["user"]
     except Exception:
         return PlainTextResponse("Sign-in failed. Try again.", status_code=502, headers=NOSTORE)
-    r = Response(status_code=303, headers={"Location": "/map", **NOSTORE})
+    nxt = request.cookies.get("rm_next", "/map")
+    r = Response(status_code=303, headers={"Location": nxt if nxt.startswith("/") and not nxt.startswith("//") else "/map",
+                                           **NOSTORE})
+    r.delete_cookie("rm_next")
     r.set_cookie(COOKIE, _sign({"u": _user_id(user["id"]), "exp": int(time.time()) + SESSION_DAYS * 86400}),
                  max_age=SESSION_DAYS * 86400, httponly=True, secure=True, samesite="lax")
     r.delete_cookie("rm_state")
@@ -314,6 +357,9 @@ def api_data(request: Request):
     with _tool_lock, pool().connection() as conn:
         memmap._LOG_CACHE.clear()
         data = viz.build_data(None, root=store_pg.PgStore(conn, user))
+        for p, h in _holds(conn, user).items():
+            if p in data["projects"]:
+                data["projects"][p]["held"] = h
     return JSONResponse(data, headers=NOSTORE)
 
 
@@ -332,6 +378,8 @@ async def api_op(request: Request):
 
     def apply():
         with _tool_lock, pool().connection() as conn:
+            if project in _holds(conn, user):
+                raise ValueError(f"{project} is offline on another computer; it's read-only here")
             memmap._LOG_CACHE.clear()
             st = store_pg.PgStore(conn, user)
             (target, ev), = memmap.apply_ops(st, project, [op], by="user")
@@ -371,3 +419,221 @@ def delete_all(request: Request):
     with pool().connection() as conn:
         store_pg.PgStore(conn, user).delete_all()
     return {"ok": True, "deleted": "all of your remember.me memory"}
+
+
+# ---------------------------------------------------------------- computers: device sign-in
+# A computer running the local remember.me server signs in once: it gets a code and a link, the user opens the link
+# (signed in to remember.me in the browser) and allows it, and the computer receives a long-lived token for this
+# account. Same pattern as `fastapi login` or a TV app.
+
+DEVICE_TTL = 600
+
+
+def _user_code():
+    import secrets
+    a = "BCDFGHJKLMNPQRSTVWXZ"
+    return "".join(secrets.choice(a) for _ in range(4)) + "-" + "".join(secrets.choice(a) for _ in range(4))
+
+
+@app.post("/device/start")
+async def device_start(request: Request):
+    import secrets
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    name = str(body.get("name") or "a computer")[:80]
+    dc, uc = secrets.token_urlsafe(32), _user_code()
+    with pool().connection() as c:
+        c.execute("delete from rm_device_codes where expires < now()")
+        c.execute("insert into rm_device_codes (device_code, user_code, name, expires) "
+                  "values (%s, %s, %s, now() + make_interval(secs => %s))", (dc, uc, name, DEVICE_TTL))
+    return {"device_code": dc, "user_code": uc, "verification_uri": f"{PUBLIC_URL}/device",
+            "verification_uri_complete": f"{PUBLIC_URL}/device?code={uc}", "interval": 3, "expires_in": DEVICE_TTL}
+
+
+def _page(title, body):
+    return HTMLResponse(f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>{title}</title>
+<style>:root{{--bg:#fbfaf7;--fg:#1f1d1a;--mut:#6b665e;--acc:#2f5d50;--line:#e4e0d8}}
+@media (prefers-color-scheme:dark){{:root{{--bg:#181715;--fg:#ece8e1;--mut:#a39d93;--acc:#7fb3a3;--line:#34312c}}}}
+body{{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 system-ui,sans-serif}}
+main{{max-width:28rem;margin:12vh auto;padding:0 16px}}h1{{font-size:1.3rem}}p{{color:var(--mut)}}
+code{{font-size:1.4rem;letter-spacing:.08em;color:var(--fg)}}button{{font:inherit;padding:.6rem 1.2rem;border-radius:8px;
+border:0;background:var(--acc);color:var(--bg);cursor:pointer}}</style></head><body><main>{body}</main></body></html>""",
+                        headers=NOSTORE)
+
+
+@app.get("/device")
+def device_page(request: Request, code: str = ""):
+    import html
+    import urllib.parse
+    if not _web_user(request):
+        return Response(status_code=303, headers={"Location": "/login?next=" + urllib.parse.quote(f"/device?code={code}"),
+                                                  **NOSTORE})
+    with pool().connection() as c:
+        row = c.execute("select name from rm_device_codes where user_code = %s and expires > now() and user_id is null",
+                        (code.upper(),)).fetchone()
+    if not row:
+        return _page("remember.me", "<h1>That code has expired or was already used</h1><p>Ask your assistant to "
+                                    "connect this computer again.</p>")
+    return _page("Allow this computer", f"""<h1>Allow {html.escape(row[0])} to use your remember.me memory?</h1>
+<p>Check this code matches the one your assistant showed you:</p><p><code>{html.escape(code.upper())}</code></p>
+<p>It will be able to read and save memory in your account, and take projects offline.</p>
+<form method="post" action="/device/approve"><input type="hidden" name="code" value="{html.escape(code.upper())}">
+<button>Allow</button></form>""")
+
+
+@app.post("/device/approve")
+async def device_approve(request: Request):
+    import secrets
+    user = _web_user(request)
+    if not user:
+        return Response(status_code=303, headers={"Location": "/login", **NOSTORE})
+    if request.headers.get("origin") not in (None, PUBLIC_URL):
+        return PlainTextResponse("bad origin", status_code=403)
+    form = await request.form()
+    code = str(form.get("code", "")).upper()
+    token = "rmd_" + secrets.token_urlsafe(32)
+    with pool().connection() as c:
+        row = c.execute("update rm_device_codes set user_id = %s, token = %s where user_code = %s and expires > now() "
+                        "and user_id is null returning name", (user, token, code)).fetchone()
+        if not row:
+            return _page("remember.me", "<h1>That code has expired or was already used</h1>")
+        c.execute("insert into rm_tokens (token_hash, user_id, device_id, name) values (%s, %s, %s, %s)",
+                  (hashlib.sha256(token.encode()).hexdigest(), user, "dev_" + secrets.token_hex(8), row[0]))
+    return _page("Done", f"<h1>Done</h1><p>{row[0]} is connected to your remember.me memory. You can close this page "
+                         "and go back to your assistant.</p>")
+
+
+@app.post("/device/poll")
+async def device_poll(request: Request):
+    body = await request.json()
+    with pool().connection() as c:
+        row = c.execute("select user_id, token, expires > now() from rm_device_codes where device_code = %s",
+                        (str(body.get("device_code", "")),)).fetchone()
+        if not row or (not row[0] and not row[2]):
+            return JSONResponse({"status": "expired"}, status_code=400)
+        if not row[0]:
+            return {"status": "pending"}
+        if row[1]:  # hand the token over once
+            c.execute("update rm_device_codes set token = null where device_code = %s", (body["device_code"],))
+            return {"status": "approved", "token": row[1]}
+        return JSONResponse({"status": "expired"}, status_code=400)
+
+
+# ---------------------------------------------------------------- sync: taking projects offline and back
+# Only signed-in computers (device tokens) use these. A project lives in one place at a time: a computer that takes it
+# offline "holds" it (online it becomes read-only, or is removed if the user doesn't want a cloud copy); coming back
+# online replaces the online copy with the computer's and releases the hold. So there is never anything to merge.
+
+def _device_call(request):
+    user, device = principal(_token(request))
+    if not user or not device:
+        return None, None, JSONResponse({"error": "sign in this computer first (device sign-in)"}, status_code=401)
+    return user, device, None
+
+
+def _project_prefixes(p):
+    return (f"log/{p}/", f"maps/{p}/")
+
+
+@app.get("/api/sync/state")
+def sync_state(request: Request):
+    user, device, err = _device_call(request)
+    if err:
+        return err
+    with pool().connection() as conn:
+        st = store_pg.PgStore(conn, user)
+        holds = _holds(conn, user)
+        projects = {}
+        for sub in ("log", "maps"):
+            for p in st.listdir(sub):
+                projects.setdefault(p, {"files": 0})
+        for p in projects:
+            projects[p]["files"] = sum(len(st.files(x)) for x in _project_prefixes(p))
+        held_here = {r[0] for r in conn.execute("select project from rm_holds where user_id = %s and device_id = %s",
+                                                (user, device["id"]))}
+        for p, h in holds.items():
+            projects.setdefault(p, {"files": 0})["hold"] = {**h, "this_computer": p in held_here}
+    return {"projects": projects, "device": device["name"]}
+
+
+@app.get("/api/sync/pull")
+def sync_pull(request: Request, project: str):
+    user, device, err = _device_call(request)
+    if err:
+        return err
+    buf = io.BytesIO()
+    with pool().connection() as conn, zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+        st = store_pg.PgStore(conn, user)
+        for prefix in _project_prefixes(project):
+            for path, content in st.files(prefix):
+                z.writestr(path, content)
+    return Response(buf.getvalue(), media_type="application/zip", headers=NOSTORE)
+
+
+@app.post("/api/sync/hold")
+async def sync_hold(request: Request):
+    user, device, err = _device_call(request)
+    if err:
+        return err
+    body = await request.json()
+    p, keep = body["project"], bool(body.get("keep_online", True))
+    with pool().connection() as conn:
+        row = conn.execute("select device_id, device_name from rm_holds where user_id = %s and project = %s",
+                           (user, p)).fetchone()
+        if row and row[0] != device["id"]:
+            return JSONResponse({"error": f"{p} is already offline on {row[1]}"}, status_code=409)
+        conn.execute("insert into rm_holds (user_id, project, device_id, device_name, keep_online) "
+                     "values (%s, %s, %s, %s, %s) on conflict (user_id, project) do update set "
+                     "device_id = excluded.device_id, device_name = excluded.device_name, "
+                     "keep_online = excluded.keep_online, since = now()", (user, p, device["id"], device["name"], keep))
+        if not keep:
+            st = store_pg.PgStore(conn, user)
+            for prefix in _project_prefixes(p):
+                st.delete_prefix(prefix)
+    return {"ok": True, "project": p, "keep_online": keep}
+
+
+@app.post("/api/sync/push")
+async def sync_push(request: Request, project: str, release: bool = True):
+    """Replace the online copy of a project with the computer's (a zip in the ~/.remember layout)."""
+    user, device, err = _device_call(request)
+    if err:
+        return err
+    data = await request.body()
+    try:
+        z = zipfile.ZipFile(io.BytesIO(data))
+        files = {n: z.read(n).decode("utf-8") for n in z.namelist() if not n.endswith("/")}
+    except Exception:
+        return JSONResponse({"error": "expected a zip"}, status_code=400)
+    prefixes = _project_prefixes(project)
+    if any(not n.startswith(prefixes) for n in files):
+        return JSONResponse({"error": f"every file must be under log/{project}/ or maps/{project}/"}, status_code=400)
+    with pool().connection() as conn:
+        row = conn.execute("select device_id, device_name from rm_holds where user_id = %s and project = %s",
+                           (user, project)).fetchone()
+        if row and row[0] != device["id"]:
+            return JSONResponse({"error": f"{project} is offline on {row[1]}"}, status_code=409)
+        st = store_pg.PgStore(conn, user)
+        with conn.transaction():
+            for prefix in prefixes:
+                st.delete_prefix(prefix)
+            for n, text in files.items():
+                st.write(n, text)
+        if release:
+            conn.execute("delete from rm_holds where user_id = %s and project = %s", (user, project))
+    return {"ok": True, "project": project, "files": len(files), "released": release}
+
+
+@app.post("/api/sync/release")
+async def sync_release(request: Request):
+    user, device, err = _device_call(request)
+    if err:
+        return err
+    p = (await request.json())["project"]
+    with pool().connection() as conn:
+        conn.execute("delete from rm_holds where user_id = %s and project = %s and device_id = %s",
+                     (user, p, device["id"]))
+    return {"ok": True}

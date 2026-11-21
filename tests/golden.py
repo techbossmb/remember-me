@@ -56,6 +56,7 @@ OPS = [
 def mask(s, store):
     s = s.replace("store: " + store, "store: <STORE>")
     s = re.sub(r"\b\d{14}\b", "<STAMP>", s)
+    s = re.sub(r'"eid": "[0-9a-f]{32}"', '"eid": "<EID>"', s)
     s = re.sub(r'"logged_at": "[^"]+"', '"logged_at": "<T>"', s)
     s = re.sub(r"\b20\d\d-\d\d-\d\dT\d\d:\d\d:\d\dZ\b(?!\S*#)", lambda m: m.group(0) if m.group(0).startswith("2026-09") else "<NOW>", s)
     s = re.sub(r"\b(20\d\d-\d\d-\d\d[T ]\d\d:\d\d)\b", lambda m: m.group(1) if m.group(1).startswith("2026-09") else "<NOW>", s)
