@@ -14,3 +14,10 @@ dependencies = [
 
 [tool.fastapi]
 entrypoint = "online.main:app"
+
+# Deployed as plain files (the service adds remember/ to its import path), not installed as a package.
+[tool.uv]
+package = false
+
+[tool.setuptools]
+packages = []
