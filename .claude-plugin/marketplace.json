@@ -9,11 +9,11 @@
       "name": "remember-me",
       "source": "./",
       "description": "Long-term memory for your assistant: conversations word for word plus a map of decisions, open items and rules, online or on your computer.",
-      "version": "0.6.0"
+      "version": "0.6.1"
     }
   ],
   "metadata": {
     "description": "remember-me: long-term memory for AI agents",
-    "version": "0.6.0"
+    "version": "0.6.1"
   }
 }

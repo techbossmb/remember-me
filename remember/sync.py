@@ -75,7 +75,8 @@ class SyncError(Exception):
 
 def _http(store, method, path, body=None, raw=None, auth=True, ctype="application/json"):
     cfg = config(store)
-    headers = {"Accept": "application/json"}
+    # a named client: the service sits behind Cloudflare, which refuses Python's default "Python-urllib" signature
+    headers = {"Accept": "application/json", "User-Agent": "remember-me-plugin/0.6.1 (+https://remember-me.fastapicloud.dev)"}
     if auth:
         if not cfg.get("token"):
             raise SyncError("this computer isn't connected to a remember-me account yet (remember_mode connect)")

@@ -14,7 +14,7 @@ import cli
 import memmap
 
 PROTOCOL = "2025-06-18"
-VERSION = "0.6.0"
+VERSION = "0.6.1"
 
 S = {"type": "string"}
 PROJECT = {"project": {"type": "string", "description": "the name of what the user is working on (remember_projects lists existing ones). Needed unless the app runs in the project's own folder; the tool says so if it can't tell."}}
