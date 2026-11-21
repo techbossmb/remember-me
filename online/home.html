@@ -4,46 +4,166 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>remember-me</title>
-<meta name="description" content="Long-term memory for AI assistants: your conversations, word for word, and a map of them.">
+<meta name="description" content="Memory for your AI assistant: every conversation kept word for word, and a map of what was decided, what's open and the rules you've set.">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
-:root{--bg:#fbfaf7;--panel:#fff;--fg:#1f1d1a;--mut:#6b665e;--line:#e7e3db;--acc:#2f5d50;--acc-fg:#fff}
-@media (prefers-color-scheme:dark){:root{--bg:#161513;--panel:#1e1c1a;--fg:#ece8e1;--mut:#a39d93;--line:#34312c;--acc:#7fb3a3;--acc-fg:#10201b}}
+:root{
+  --paper:#F4F6FA; --sheet:#FFFFFF; --ink:#162036; --muted:#58627A; --rule:#D8DDE8;
+  --thread:#2F5BEA; --thread-soft:#E3EAFD; --marker:#FFE58A; --marker-ink:#162036;
+  --sans:"Schibsted Grotesk",system-ui,-apple-system,"Segoe UI",sans-serif; --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root{
+  --paper:#0E1424; --sheet:#151D31; --ink:#E7EBF4; --muted:#9CA6BB; --rule:#28324A;
+  --thread:#86A2FF; --thread-soft:#1E2A4C; --marker:#5C4C10; --marker-ink:#FFF1BF;}}
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.6 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
-main{max-width:680px;margin:0 auto;padding:48px 16px 64px}
-h1{font-size:30px;letter-spacing:-.02em;margin:0 0 8px}
-.lede{font-size:18px;color:var(--mut);margin:0 0 28px}
-h2{font-size:16px;margin:28px 0 8px}
-ol{padding-left:22px} li{margin:6px 0}
-code{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:2px 6px;font-size:14px;overflow-wrap:anywhere}
-.box{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px}
-.copy{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px}
-button,.btn{font:inherit;font-size:14px;border-radius:8px;padding:7px 14px;border:1px solid var(--line);background:var(--panel);color:var(--fg);cursor:pointer;text-decoration:none;display:inline-block}
-.btn.primary{background:var(--acc);color:var(--acc-fg);border-color:var(--acc)}
-nav{display:flex;gap:10px;flex-wrap:wrap;margin-top:28px}
-.mut{color:var(--mut)} a{color:var(--acc)}
-.tabs{display:flex;gap:2px;overflow-x:auto;margin:14px -18px 0;padding:0 18px;border-bottom:1px solid var(--line);scrollbar-width:none}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--paper);color:var(--ink);font:17px/1.6 var(--sans);font-feature-settings:"ss01"}
+a{color:var(--thread);text-underline-offset:3px}
+:focus-visible{outline:2px solid var(--thread);outline-offset:2px;border-radius:4px}
+.wrap{max-width:1080px;margin:0 auto;padding:0 20px}
+header.top{display:flex;align-items:center;gap:20px;padding:22px 0}
+.mark{white-space:nowrap;display:flex;align-items:center;gap:10px;font-weight:800;font-size:19px;letter-spacing:-.02em;color:var(--ink);text-decoration:none}
+.mark svg{width:26px;height:26px}
+header.top nav{margin-left:auto;display:flex;gap:22px;font-size:15px;font-weight:500}
+header.top nav a{color:var(--ink);text-decoration:none}
+header.top nav a:hover{color:var(--thread)}
+
+/* hero */
+.hero{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.05fr);gap:56px;align-items:center;padding:56px 0 88px}
+h1{font-size:clamp(40px,6.2vw,72px);line-height:.98;letter-spacing:-.035em;font-weight:800;margin:0 0 22px;max-width:11ch}
+.lede{font-size:20px;line-height:1.5;color:var(--muted);margin:0 0 32px;max-width:34ch}
+.actions{display:flex;gap:12px;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;font:600 16px/1 var(--sans);padding:14px 20px;border-radius:10px;text-decoration:none;border:1.5px solid var(--ink);color:var(--ink);background:transparent;cursor:pointer}
+.btn.solid{background:var(--ink);color:var(--paper)}
+.btn:hover{border-color:var(--thread)}
+.btn.solid:hover{background:var(--thread);border-color:var(--thread);color:#fff}
+
+/* the memorable thing: a map thread tethered to the words it came from */
+.trace{position:relative;display:grid;grid-template-columns:1fr 1fr;gap:0 44px}
+.trace svg.tethers{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible}
+.trace .col h3{font-size:13px;font-weight:600;color:var(--muted);margin:0 0 12px;letter-spacing:.01em}
+.thread{background:var(--sheet);border:1.5px solid var(--ink);border-radius:14px;padding:18px 18px 8px;position:relative;z-index:1}
+.thread .t{font-weight:700;font-size:18px;letter-spacing:-.01em;margin:0 0 4px}
+.thread .s{font-size:14px;color:var(--muted);margin:0 0 12px}
+.claim{display:block;font-size:15px;line-height:1.4;padding:10px 0;border-top:1px solid var(--rule)}
+.claim b{font-weight:600;display:block;font-size:12.5px;color:var(--thread);margin-bottom:2px}
+.msgs{display:flex;flex-direction:column;gap:14px;position:relative;z-index:1}
+.msg{background:var(--sheet);border-radius:12px;padding:12px 14px;font-size:14.5px;line-height:1.45;border:1px solid var(--rule)}
+.msg .who{font:500 12.5px/1 var(--sans);color:var(--muted);margin-bottom:6px;display:block}
+.msg mark{background:var(--marker);color:var(--marker-ink);padding:0 2px;border-radius:2px}
+.tethers path{fill:none;stroke:var(--thread);stroke-width:1.6;stroke-dasharray:var(--len);stroke-dashoffset:var(--len);animation:draw 1.1s cubic-bezier(.6,0,.2,1) forwards}
+.tethers path:nth-child(2){animation-delay:.25s}.tethers path:nth-child(3){animation-delay:.5s}
+.tethers circle{fill:var(--thread)}
+@keyframes draw{to{stroke-dashoffset:0}}
+@media (prefers-reduced-motion:reduce){.tethers path{animation:none;stroke-dashoffset:0}}
+.caption{grid-column:1/-1;font-size:14px;color:var(--muted);margin:18px 0 0;max-width:52ch}
+
+/* sections */
+section{padding:72px 0;border-top:1px solid var(--rule)}
+h2{font-size:clamp(28px,3.4vw,38px);letter-spacing:-.025em;line-height:1.1;margin:0 0 14px;font-weight:800;max-width:20ch}
+.sub{color:var(--muted);margin:0 0 28px;max-width:58ch}
+.connect{display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr);gap:48px;align-items:start}
+.panel{background:var(--sheet);border:1.5px solid var(--ink);border-radius:14px;overflow:hidden}
+.tabs{display:flex;overflow-x:auto;border-bottom:1.5px solid var(--ink);scrollbar-width:none;-webkit-mask-image:linear-gradient(to right,#000 90%,transparent);mask-image:linear-gradient(to right,#000 90%,transparent)}
 .tabs::-webkit-scrollbar{display:none}
-.tabs{-webkit-mask-image:linear-gradient(to right,#000 88%,transparent);mask-image:linear-gradient(to right,#000 88%,transparent)}
-.tabs button{white-space:nowrap;border:1px solid transparent;border-bottom:0;border-radius:8px 8px 0 0;background:none;color:var(--mut);padding:8px 14px;margin-bottom:-1px;font-weight:500}
-.tabs button:hover{color:var(--fg)}
-.tabs button[aria-selected="true"]{color:var(--fg);background:var(--panel);border-color:var(--line);box-shadow:inset 0 2px 0 var(--acc)}
-.tabs button:focus-visible{outline:2px solid var(--acc);outline-offset:-2px}
-[role=tabpanel]{padding-top:6px}
-[role=tabpanel] ol{margin:10px 0}
-pre{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px 12px;overflow-x:auto;font-size:13px}
-pre code{background:none;border:0;padding:0}
-code.u{overflow-wrap:anywhere}
+.tabs button{font:600 15px/1 var(--sans);white-space:nowrap;background:none;border:0;border-right:1px solid var(--rule);color:var(--muted);padding:15px 18px;cursor:pointer;position:relative}
+.tabs button:hover{color:var(--ink)}
+.tabs button[aria-selected="true"]{color:var(--ink);background:var(--thread-soft)}
+.tabs button[aria-selected="true"]::after{content:"";position:absolute;left:0;right:0;bottom:-1.5px;height:3px;background:var(--thread)}
+[role=tabpanel]{padding:22px 24px 6px;font-size:16px}
+[role=tabpanel] ol{padding-left:22px;margin:0 0 14px}
+[role=tabpanel] li{margin:8px 0}
+[role=tabpanel] p{margin:0 0 14px}
+.mut{color:var(--muted)}
+code{font:14px/1.5 var(--mono);background:var(--thread-soft);padding:1px 6px;border-radius:5px;overflow-wrap:anywhere}
+pre{background:var(--paper);border:1px solid var(--rule);border-radius:10px;padding:12px 14px;overflow-x:auto;margin:0 0 14px}
+pre code{background:none;padding:0}
+.addr{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:14px 24px 20px;border-top:1px solid var(--rule)}
+.addr code{font-size:14px}
+.addr button{font:600 14px/1 var(--sans);padding:9px 14px;border-radius:8px;border:1.5px solid var(--ink);background:none;color:var(--ink);cursor:pointer}
+.addr button:hover{border-color:var(--thread);color:var(--thread)}
+
+.gets{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:36px 56px;max-width:900px}
+.gets h3{font-size:20px;letter-spacing:-.015em;margin:0 0 6px}
+.gets p{margin:0;color:var(--muted)}
+.gets .line{display:block;width:36px;height:3px;background:var(--thread);margin-bottom:14px;border-radius:2px}
+
+.agents{display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr);gap:48px}
+.agents ul{margin:0;padding-left:20px}
+.agents li{margin:0 0 12px}
+
+footer{border-top:1px solid var(--rule);padding:32px 0 48px;font-size:15px;color:var(--muted);display:flex;gap:22px;flex-wrap:wrap}
+footer a{color:var(--ink);text-decoration:none}
+footer a:hover{color:var(--thread)}
+footer .free{margin-left:auto}
+
+@media (max-width:880px){
+  .hero,.connect,.agents{grid-template-columns:1fr;gap:36px}
+  .hero{padding:28px 0 64px}
+  .gets{grid-template-columns:1fr}
+}
+@media (max-width:560px){
+  body{font-size:16px}
+  header.top nav{gap:14px;font-size:14px}
+  header.top nav a[href="#connect"]{display:none}
+  .trace{grid-template-columns:1fr;gap:16px}
+  .trace svg.tethers{display:none}
+  .msg{border-left:3px solid var(--thread)}
+  [role=tabpanel],.addr{padding-left:18px;padding-right:18px}
+}
 </style>
 </head>
 <body>
-<main>
-<h1>remember-me</h1>
-<p class="lede">Long-term memory for your AI assistant. It keeps your conversations word for word, builds a map of what was decided, what's open and the rules you've set, and hands it to the assistant every time you come back.</p>
+<div class="wrap">
+<header class="top">
+  <a class="mark" href="/" aria-label="remember-me home">
+    <svg viewBox="0 0 26 26" aria-hidden="true"><circle cx="6" cy="7" r="3.2" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="20" cy="19" r="3.2" fill="currentColor"/><path d="M8.6 9.2C13 12 13 15 17.4 16.8" fill="none" stroke="#2F5BEA" stroke-width="2" stroke-linecap="round"/></svg>
+    remember-me
+  </a>
+  <nav><a href="#connect">Connect</a><a href="/map">My map</a><a href="/account">Account</a></nav>
+</header>
 
-<div class="box">
-<b>Connect your assistant</b>
-<div class="tabs" role="tablist" aria-label="Assistant"><button role="tab" id="t-claude" aria-controls="p-claude" aria-selected="true" tabindex="0">Claude</button><button role="tab" id="t-chatgpt" aria-controls="p-chatgpt" aria-selected="false" tabindex="-1">ChatGPT</button><button role="tab" id="t-muse" aria-controls="p-muse" aria-selected="false" tabindex="-1">Meta Muse</button><button role="tab" id="t-code" aria-controls="p-code" aria-selected="false" tabindex="-1">Claude Code</button><button role="tab" id="t-cursor" aria-controls="p-cursor" aria-selected="false" tabindex="-1">Cursor</button><button role="tab" id="t-vscode" aria-controls="p-vscode" aria-selected="false" tabindex="-1">VS Code</button><button role="tab" id="t-gemini" aria-controls="p-gemini" aria-selected="false" tabindex="-1">Gemini CLI</button><button role="tab" id="t-codex" aria-controls="p-codex" aria-selected="false" tabindex="-1">Codex</button><button role="tab" id="t-other" aria-controls="p-other" aria-selected="false" tabindex="-1">Other</button></div>
+<div class="hero">
+  <div>
+    <h1>Pick up where you left off.</h1>
+    <p class="lede">remember-me keeps your conversations with AI word for word and builds a map of them: what you decided, what's still open, and the rules you set. Every new chat starts from it, on any device and any assistant.</p>
+    <div class="actions"><a class="btn solid" href="#connect">Connect your assistant</a><a class="btn" href="/map">Open my map</a></div>
+  </div>
+
+  <div class="trace" id="trace">
+    <svg class="tethers" aria-hidden="true"></svg>
+    <div class="col">
+      <h3>In the map</h3>
+      <div class="thread">
+        <p class="t">Launch plan</p>
+        <p class="s">Started 3 weeks ago, 4 chats</p>
+        <span class="claim" data-to="m1"><b>Decided</b>Start with about 20 people we know</span>
+        <span class="claim" data-to="m2"><b>Open</b>What to charge after early access</span>
+        <span class="claim" data-to="m3"><b>Rule</b>Never touch the production database</span>
+      </div>
+    </div>
+    <div class="col">
+      <h3>From your words</h3>
+      <div class="msgs">
+        <div class="msg" id="m1"><span class="who">You, Nov 7</span>Let's not open sign-ups yet. <mark>Start with ~20 people I know</mark> and watch what breaks.</div>
+        <div class="msg" id="m2"><span class="who">You, Nov 21</span>For now it's free. <mark>At some point we'll think about charging</mark>, the server isn't going to pay for itself.</div>
+        <div class="msg" id="m3"><span class="who">You, Oct 10</span>Ground rule for every session: <mark>never act on prod</mark>.</div>
+      </div>
+    </div>
+    <p class="caption">Every line in the map points back to the exact message it came from, so your assistant can check the record instead of guessing.</p>
+  </div>
+</div>
+</div>
+
+<section id="connect"><div class="wrap connect">
+  <div>
+    <h2>Connect your assistant</h2>
+    <p class="sub">It takes a minute. Signing in creates your account; your memory is then the same in every assistant you connect.</p>
+    <p class="sub">Then, in a chat about one of your projects, say <b>"start memory for this project"</b>.</p>
+  </div>
+  <div class="panel">
+    <div class="tabs" role="tablist" aria-label="Assistant"><button role="tab" id="t-claude" aria-controls="p-claude" aria-selected="true" tabindex="0">Claude</button><button role="tab" id="t-chatgpt" aria-controls="p-chatgpt" aria-selected="false" tabindex="-1">ChatGPT</button><button role="tab" id="t-muse" aria-controls="p-muse" aria-selected="false" tabindex="-1">Meta Muse</button><button role="tab" id="t-code" aria-controls="p-code" aria-selected="false" tabindex="-1">Claude Code</button><button role="tab" id="t-cursor" aria-controls="p-cursor" aria-selected="false" tabindex="-1">Cursor</button><button role="tab" id="t-vscode" aria-controls="p-vscode" aria-selected="false" tabindex="-1">VS Code</button><button role="tab" id="t-gemini" aria-controls="p-gemini" aria-selected="false" tabindex="-1">Gemini CLI</button><button role="tab" id="t-codex" aria-controls="p-codex" aria-selected="false" tabindex="-1">Codex</button><button role="tab" id="t-other" aria-controls="p-other" aria-selected="false" tabindex="-1">Other</button></div>
 <div role="tabpanel" id="p-claude" aria-labelledby="t-claude"><ol>
 <li>Settings → Connectors → <b>Add custom connector</b>.</li>
 <li>Name <code>remember-me</code>, URL <code class="u">https://remember-me.fastapicloud.dev/mcp</code></li>
@@ -67,44 +187,66 @@ code.u{overflow-wrap:anywhere}
 <pre><code>{ "mcpServers": { "remember-me": { "httpUrl": "https://remember-me.fastapicloud.dev/mcp" } } }</code></pre>
 <p>Restart the CLI; it opens sign-in in your browser the first time.</p></div><div role="tabpanel" id="p-codex" aria-labelledby="t-codex" hidden><pre><code>codex mcp add remember-me --url https://remember-me.fastapicloud.dev/mcp
 codex mcp login remember-me</code></pre></div><div role="tabpanel" id="p-other" aria-labelledby="t-other" hidden><p>Any assistant that supports remote MCP servers with sign-in can add <code class="u">https://remember-me.fastapicloud.dev/mcp</code>. Or just tell your assistant: <b>"Set up a custom connector from remember-me.fastapicloud.dev"</b>. The section below tells it what to do.</p></div>
-<div class="copy"><span class="mut">Connector address:</span><code id="mcp">https://remember-me.fastapicloud.dev/mcp</code><button id="cp">Copy</button></div>
-</div></li>
-<li>Connect, and sign in (Google, Microsoft, GitHub, Apple or email). That creates your account.</li>
-<li>In a chat in your project, say <b>"start memory for this project"</b>.</li>
-</ol>
-<p class="mut" style="margin:0">Other assistants that support remote MCP servers with sign-in (Claude Code, Cursor, VS Code, Gemini CLI) can add the same address.</p>
-</div>
 
-<h2>What you get</h2>
-<ul>
-<li><b>"Where were we?" works</b> in any new chat, on any device.</li>
-<li><b>A live map</b> of each project you can browse, rename and tidy.</li>
-<li><b>Your rules stick:</b> things you told the assistant once ("never touch production", "British spelling") keep applying.</li>
-<li><b>Yours to take with you:</b> download everything as plain files, or keep it only on your own computer.</li>
-</ul>
+    <div class="addr"><span class="mut">Connector address</span><code id="mcp">https://remember-me.fastapicloud.dev/mcp</code><button id="cp" type="button">Copy</button></div>
+  </div>
+</div></section>
 
-<h2>For AI assistants setting this up</h2>
-<div class="box">
-<p style="margin-top:0">If a user asked you to set up remember-me from this page:</p>
-<ul>
-<li>It's a remote MCP server at <code>https://remember-me.fastapicloud.dev/mcp</code> (streamable HTTP) with OAuth sign-in. Discovery: <code>/.well-known/oauth-protected-resource</code>; Client ID Metadata Documents and dynamic client registration are both supported.</li>
-<li>Add it wherever your app takes a custom connector or remote MCP server, and let the user sign in.</li>
-<li>If you call it with your own code, send a <code>User-Agent</code> that names your client (for example <code>my-assistant-connector/1.0</code>). Python's default <code>Python-urllib</code> signature is refused by the host with error 1010.</li>
-<li>Then call <code>remember_guide</code> and follow it: always pass <code>project</code>, and a stable <code>session</code> name per conversation when saving.</li>
-</ul>
-<p class="mut" style="margin-bottom:0">Plain-text version: <a href="/llms.txt">/llms.txt</a>. Other environments (Claude Code, the on-your-computer plugin): <a href="https://github.com/techbossmb/remember-me">GitHub README</a>.</p>
-</div>
+<section><div class="wrap">
+  <h2>What changes</h2>
+  <p class="sub">Your assistant stops starting from zero.</p>
+  <div class="gets">
+    <div><span class="line"></span><h3>"Where were we?" works</h3><p>Any new chat, on your phone or your laptop, opens with what's going on in the project and where each thread stopped.</p></div>
+    <div><span class="line"></span><h3>Rules stay put</h3><p>Things you said once, like "never touch production" or "British spelling", keep applying in every chat after.</p></div>
+    <div><span class="line"></span><h3>A map you can see</h3><p>Browse each project's topics, decisions and open questions, and rename, merge or close them yourself.</p></div>
+    <div><span class="line"></span><h3>Yours to take</h3><p>Download everything as plain files, delete any of it, or keep a project only on your own computer.</p></div>
+  </div>
+</div></section>
 
-<p class="mut">Free during early access.</p>
+<section><div class="wrap agents">
+  <div>
+    <h2>For AI assistants setting this up</h2>
+    <p class="sub">If someone sent you here to connect remember-me, this is what you need.</p>
+  </div>
+  <div>
+    <ul>
+      <li>It's a remote MCP server at <code>https://remember-me.fastapicloud.dev/mcp</code> (streamable HTTP) with OAuth sign-in. Discovery: <code>/.well-known/oauth-protected-resource</code>. Client ID Metadata Documents and dynamic client registration are both supported.</li>
+      <li>Add it wherever your app takes a custom connector or remote MCP server, and let the user sign in.</li>
+      <li>If you call it with your own code, send a <code>User-Agent</code> that names your client, for example <code>my-assistant-connector/1.0</code>. Python's default <code>Python-urllib</code> is refused by the host with error 1010.</li>
+      <li>Then call <code>remember_guide</code> and follow it. Always pass <code>project</code>, and a stable <code>session</code> name per conversation when saving.</li>
+    </ul>
+    <p class="mut">Plain text: <a href="/llms.txt">/llms.txt</a>. Other setups, including keeping memory on your own computer: <a href="https://github.com/techbossmb/remember-me">the README on GitHub</a>.</p>
+  </div>
+</div></section>
 
-<nav><a class="btn primary" href="/map">Open my map</a><a class="btn" href="/account">Account</a><a class="btn" href="/privacy">Privacy</a><a class="btn" href="https://github.com/techbossmb/remember-me">GitHub</a></nav>
-</main>
+<div class="wrap"><footer>
+  <a href="/privacy">Privacy</a><a href="/account">Account</a><a href="https://github.com/techbossmb/remember-me">GitHub</a><span class="free">Free during early access</span>
+</footer></div>
+
 <script>
 document.getElementById("cp").onclick=async e=>{try{await navigator.clipboard.writeText(document.getElementById("mcp").textContent);e.target.textContent="Copied"}catch{e.target.textContent="Select and copy"}};
 const tabs=[...document.querySelectorAll('[role=tab]')];
 function pick(t,focus){tabs.forEach(b=>{const on=b===t;b.setAttribute("aria-selected",on);b.tabIndex=on?0:-1;document.getElementById(b.getAttribute("aria-controls")).hidden=!on});if(focus)t.focus();try{localStorage.setItem("rm-tab",t.id)}catch{}}
 tabs.forEach((t,i)=>{t.onclick=()=>pick(t);t.onkeydown=e=>{const d=e.key==="ArrowRight"?1:e.key==="ArrowLeft"?-1:0;if(d)pick(tabs[(i+d+tabs.length)%tabs.length],true)}});
 try{const saved=document.getElementById(localStorage.getItem("rm-tab"));if(saved)pick(saved)}catch{}
+
+// tether each map line to the message it came from
+function tether(){
+  const box=document.getElementById("trace"), svg=box.querySelector("svg.tethers");
+  if(getComputedStyle(svg).display==="none")return;
+  const r=box.getBoundingClientRect(); let out="", dots="";
+  box.querySelectorAll(".claim").forEach(c=>{
+    const m=document.getElementById(c.dataset.to); if(!m)return;
+    const a=c.getBoundingClientRect(), b=m.getBoundingClientRect();
+    const x1=a.right-r.left+18, y1=a.top+a.height/2-r.top, x2=b.left-r.left, y2=b.top+b.height/2-r.top, mx=(x1+x2)/2;
+    const d=`M${x1-18},${y1} L${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}`;
+    const len=Math.ceil(Math.hypot(x2-x1,y2-y1)*1.3+40);
+    out+=`<path d="${d}" style="--len:${len}"/>`; dots+=`<circle cx="${x1-18}" cy="${y1}" r="3"/>`;
+  });
+  svg.innerHTML=out+dots;
+}
+addEventListener("load",tether); addEventListener("resize",()=>{clearTimeout(window._t);window._t=setTimeout(tether,120)});
+document.fonts&&document.fonts.ready.then(tether);
 </script>
 </body>
 </html>
