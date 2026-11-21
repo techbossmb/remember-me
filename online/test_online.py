@@ -5,6 +5,8 @@ import sys
 import uuid
 
 run = uuid.uuid4().hex[:8]
+os.environ["REMEMBER_LINK_SECRET"] = "test-secret"
+os.environ["REMEMBER_PUBLIC_URL"] = "http://testserver"
 os.environ["REMEMBER_DEV_TOKENS"] = f"tok-a=alice-{run},tok-b=bob-{run}"
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from fastapi.testclient import TestClient  # noqa: E402
@@ -49,7 +51,7 @@ check("notification -> 202", c.post("/mcp", headers=A, json={"jsonrpc": "2.0", "
 init = rpc(A, "initialize", {"protocolVersion": "2025-06-18"})["result"]
 check("initialize", init["serverInfo"]["name"] == "remember-me" and "online" in init["instructions"], str(init)[:300])
 names = {t["name"] for t in rpc(A, "tools/list")["result"]["tools"]}
-check("local-only tools hidden", not names & {"remember_viewer", "remember_show_map", "remember_import", "remember_ingest_sessions"}, str(names))
+check("local-only tools hidden", not names & {"remember_viewer", "remember_import", "remember_ingest_sessions"}, str(names))
 check("core tools listed", {"remember_overview", "remember_log", "remember_zoom", "remember_apply_ops"} <= names, str(names))
 
 t = tool(A, "remember_status")
@@ -83,6 +85,15 @@ t = tool(B, "remember_overview", project="garden")
 check("bob can't read alice's garden", "Tomatoes" not in t and "mid April" not in t, t)
 t = tool(B, "remember_grep", project="garden", pattern="frost")
 check("bob can't grep alice's log", "planning.md" not in t, t)
+t = tool(A, "remember_show_map", project="garden")
+check("show_map gives a private link", "/map?t=" in t and "one hour" in t, t)
+link = t.split()[0].replace("http://testserver", "")
+r = c.get(link)
+check("map page renders alice's map", r.status_code == 200 and "Tomatoes" in r.text and "no-store" in r.headers.get("cache-control", ""), r.text[:200])
+check("tampered link refused", c.get(link[:-3] + "xyz").status_code == 403)
+check("bob's link doesn't show alice's garden", "Tomatoes" not in c.get(tool(B, "remember_show_map").split()[0].replace("http://testserver", "")).text)
+names2 = {t["name"] for t in rpc(A, "tools/list")["result"]["tools"]}
+check("show_map listed online", "remember_show_map" in names2)
 t = tool(A, "remember_viewer", action="status")
 check("local tool refused online", t.startswith("ERROR"), t)
 

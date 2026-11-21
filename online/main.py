@@ -15,7 +15,9 @@ Environment:
   AUTH_AUDIENCE           optional: the audience tokens must carry (usually this service's /mcp URL)
   REMEMBER_DEV_TOKENS     development only: "token=user,token2=user2" accepted as bearer tokens
 """
+import base64
 import hashlib
+import hmac
 import io
 import json
 import os
@@ -25,12 +27,13 @@ import time
 import zipfile
 
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse, PlainTextResponse, Response
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, Response
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "remember"))
 import memmap  # noqa: E402
 import mcp_server  # noqa: E402
 import store_pg  # noqa: E402
+import viz  # noqa: E402
 
 memmap.TOOL_PREFIX = "remember_"
 
@@ -50,6 +53,8 @@ DB_URL = os.environ.get("REMEMBER_DATABASE_URL", "")
 PUBLIC_URL = os.environ.get("REMEMBER_PUBLIC_URL", "").rstrip("/")
 ISSUER = os.environ.get("AUTH_ISSUER", "").rstrip("/")
 AUDIENCE = os.environ.get("AUTH_AUDIENCE") or None
+LINK_SECRET = os.environ.get("REMEMBER_LINK_SECRET", "").encode()
+LINK_TTL = 3600
 DEV_TOKENS = dict(x.split("=", 1) for x in os.environ.get("REMEMBER_DEV_TOKENS", "").split(",") if "=" in x)
 
 # ---------------------------------------------------------------- database
@@ -131,7 +136,7 @@ def user_for(token):
 
 
 def _base(request):
-    return PUBLIC_URL or str(request.base_url).rstrip("/")
+    return PUBLIC_URL or (str(request.base_url).rstrip("/") if request else "")
 
 
 def _unauthorized(request):
@@ -198,7 +203,54 @@ async def mcp(request: Request):
 def _handle(user, msg):
     with _tool_lock, pool().connection() as conn:
         memmap._LOG_CACHE.clear()  # another worker may have written since
-        return mcp_server.respond(store_pg.PgStore(conn, user), msg, online=True)
+        return mcp_server.respond(store_pg.PgStore(conn, user), msg, online=True,
+                                  show_map=lambda project: _map_link(user, project) if LINK_SECRET else
+                                  "the map page isn't set up on this server yet (REMEMBER_LINK_SECRET)")
+
+# ---------------------------------------------------------------- map page
+# The map opens from a private link the assistant gets from remember_show_map: signed, for one user, valid an hour.
+# Anyone holding the link can view that map (including the messages behind it) until it expires.
+
+
+def _b64(b):
+    return base64.urlsafe_b64encode(b).rstrip(b"=").decode()
+
+
+def _map_link(user, project):
+    body = _b64(json.dumps({"u": user, "p": project or "", "exp": int(time.time()) + LINK_TTL}).encode())
+    sig = _b64(hmac.new(LINK_SECRET, body.encode(), hashlib.sha256).digest())
+    what = f"the {project} map" if project else "your memory maps"
+    return (f"{_base(None)}/map?t={body}.{sig}\n(Private link to {what}, valid for one hour; anyone with it can see "
+            "the map and the messages behind it until then.)")
+
+
+def _read_link(t):
+    try:
+        body, sig = t.split(".", 1)
+        want = _b64(hmac.new(LINK_SECRET, body.encode(), hashlib.sha256).digest())
+        if not LINK_SECRET or not hmac.compare_digest(sig, want):
+            return None
+        d = json.loads(base64.urlsafe_b64decode(body + "=" * (-len(body) % 4)))
+        return d if d["exp"] > time.time() else None
+    except Exception:
+        return None
+
+
+@app.get("/map")
+def map_page(t: str = ""):
+    d = _read_link(t)
+    headers = {"Cache-Control": "no-store", "Referrer-Policy": "no-referrer", "X-Robots-Tag": "noindex"}
+    if not d:
+        return HTMLResponse("<p>This map link has expired or isn't valid. Ask your assistant to show your map again.</p>",
+                            status_code=403, headers=headers)
+    with _tool_lock, pool().connection() as conn:
+        memmap._LOG_CACHE.clear()
+        st = store_pg.PgStore(conn, d["u"])
+        projects = [d["p"]] if d["p"] else None
+        if d["p"] and not st.exists(f"maps/{d['p']}/graph.json"):
+            return HTMLResponse(f"<p>No map for {d['p']} yet.</p>", status_code=404, headers=headers)
+        data = viz.build_data(projects, root=st)
+    return HTMLResponse(viz.page(data), headers=headers)
 
 
 @app.get("/mcp")

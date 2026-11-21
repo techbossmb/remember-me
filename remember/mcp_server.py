@@ -182,8 +182,10 @@ def guide_text(online=False):
     return ONLINE_NOTE + text if online else text
 
 
-def respond(store, msg, online=False):
-    """One JSON-RPC message in, the response out (None for notifications). Shared by stdio and the online service."""
+def respond(store, msg, online=False, show_map=None):
+    """One JSON-RPC message in, the response out (None for notifications). Shared by stdio and the online service.
+    Online, `show_map(project or None)` returns a private link to the hosted map page."""
+    local_only = LOCAL_TOOLS - ({"remember_show_map"} if show_map else set())
     mid, method, params = msg.get("id"), msg.get("method"), msg.get("params") or {}
     if mid is None:  # notification
         return None
@@ -196,13 +198,17 @@ def respond(store, msg, online=False):
         elif method == "ping":
             res = {}
         elif method == "tools/list":
-            res = {"tools": [t for t in _tool_defs() if not (online and t["name"] in LOCAL_TOOLS)]}
+            res = {"tools": [t for t in _tool_defs() if not (online and t["name"] in local_only)]}
         elif method == "tools/call":
             name = params["name"]
             try:
-                if online and name in LOCAL_TOOLS:
+                args = params.get("arguments") or {}
+                if online and name in local_only:
                     raise ValueError(f"{name} works only with memory on the user's computer")
-                text = guide_text(online) if name == "remember_guide" else call(store, name, params.get("arguments") or {})
+                if online and name == "remember_show_map":
+                    text = show_map(args.get("project"))
+                else:
+                    text = guide_text(online) if name == "remember_guide" else call(store, name, args)
                 res = {"content": [{"type": "text", "text": text or "(empty)"}], "isError": False}
             except Exception as e:  # tool errors go back to the model, not the protocol
                 res = {"content": [{"type": "text", "text": f"error: {e}"}], "isError": True}
