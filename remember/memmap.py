@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""remember.me map: the short-term layer over the raw log, built as an ORDERED REPLAY of events.
+"""remember-me map: the short-term layer over the raw log, built as an ORDERED REPLAY of events.
 
 Storage per project (<root>/maps/<project>/):
   events.jsonl   append-only map edits. Each event: {"seq","at","src","by","op",...}. The map is

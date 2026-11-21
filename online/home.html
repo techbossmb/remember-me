@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>remember-me</title>
+<meta name="description" content="Long-term memory for AI assistants: your conversations, word for word, and a map of them.">
+<style>
+:root{--bg:#fbfaf7;--panel:#fff;--fg:#1f1d1a;--mut:#6b665e;--line:#e7e3db;--acc:#2f5d50;--acc-fg:#fff}
+@media (prefers-color-scheme:dark){:root{--bg:#161513;--panel:#1e1c1a;--fg:#ece8e1;--mut:#a39d93;--line:#34312c;--acc:#7fb3a3;--acc-fg:#10201b}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.6 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:680px;margin:0 auto;padding:48px 16px 64px}
+h1{font-size:30px;letter-spacing:-.02em;margin:0 0 8px}
+.lede{font-size:18px;color:var(--mut);margin:0 0 28px}
+h2{font-size:16px;margin:28px 0 8px}
+ol{padding-left:22px} li{margin:6px 0}
+code{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:2px 6px;font-size:14px;overflow-wrap:anywhere}
+.box{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px}
+.copy{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px}
+button,.btn{font:inherit;font-size:14px;border-radius:8px;padding:7px 14px;border:1px solid var(--line);background:var(--panel);color:var(--fg);cursor:pointer;text-decoration:none;display:inline-block}
+.btn.primary{background:var(--acc);color:var(--acc-fg);border-color:var(--acc)}
+nav{display:flex;gap:10px;flex-wrap:wrap;margin-top:28px}
+.mut{color:var(--mut)} a{color:var(--acc)}
+</style>
+</head>
+<body>
+<main>
+<h1>remember-me</h1>
+<p class="lede">Long-term memory for your AI assistant. It keeps your conversations word for word, builds a map of what was decided, what's open and the rules you've set, and hands it to the assistant every time you come back.</p>
+
+<div class="box">
+<b>Add it to Claude</b>
+<ol>
+<li>Settings → Connectors → <b>Add custom connector</b>.</li>
+<li>Name it <code>remember-me</code> and use this address:
+  <div class="copy"><code id="mcp">https://remember-me.fastapicloud.dev/mcp</code><button id="cp">Copy</button></div></li>
+<li>Connect, and sign in (Google, Microsoft, GitHub, Apple or email). That creates your account.</li>
+<li>In a chat in your project, say <b>"start memory for this project"</b>.</li>
+</ol>
+<p class="mut" style="margin:0">Other assistants that support remote MCP servers with sign-in (Claude Code, Cursor, VS Code, Gemini CLI) can add the same address.</p>
+</div>
+
+<h2>What you get</h2>
+<ul>
+<li><b>"Where were we?" works</b> in any new chat, on any device.</li>
+<li><b>A live map</b> of each project you can browse, rename and tidy.</li>
+<li><b>Your rules stick:</b> things you told the assistant once ("never touch production", "British spelling") keep applying.</li>
+<li><b>Yours to take with you:</b> download everything as plain files, or keep it only on your own computer.</li>
+</ul>
+
+<nav><a class="btn primary" href="/map">Open my map</a><a class="btn" href="/account">Account</a><a class="btn" href="/privacy">Privacy</a><a class="btn" href="https://github.com/techbossmb/remember-me">GitHub</a></nav>
+</main>
+<script>
+document.getElementById("cp").onclick=async e=>{try{await navigator.clipboard.writeText(document.getElementById("mcp").textContent);e.target.textContent="Copied"}catch{e.target.textContent="Select and copy"}};
+</script>
+</body>
+</html>

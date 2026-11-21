@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>remember-me · privacy</title>
+<style>
+:root{--bg:#fbfaf7;--fg:#1f1d1a;--mut:#6b665e;--line:#e7e3db;--acc:#2f5d50;--note:#f6efd9}
+@media (prefers-color-scheme:dark){:root{--bg:#161513;--fg:#ece8e1;--mut:#a39d93;--line:#34312c;--acc:#7fb3a3;--note:#3a3324}}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.65 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:680px;margin:0 auto;padding:32px 16px 64px}
+h1{font-size:26px;letter-spacing:-.01em;margin:0 0 4px}
+h2{font-size:17px;margin:28px 0 6px}
+p,li{color:var(--fg)} .mut{color:var(--mut)} a{color:var(--acc)}
+ul{padding-left:20px}
+.draft{background:var(--note);border-radius:8px;padding:10px 14px;font-size:14px}
+</style>
+</head>
+<body>
+<main>
+<p class="draft"><b>Draft</b> · to be reviewed before remember-me is offered to others. Last updated 21 November 2026.</p>
+<h1>Privacy at remember-me</h1>
+<p class="mut">remember-me keeps your conversations with AI assistants so they can pick up where you left off. That makes what you save here personal, and this page says plainly how it's handled.</p>
+
+<h2>What we store</h2>
+<ul>
+<li><b>Conversations you or your assistant save</b>, word for word, grouped into projects.</li>
+<li><b>The map of each project</b>: topics, decisions, open questions and standing rules, each pointing back to the messages it came from.</li>
+<li><b>Your account</b>: the id and email address your sign-in provider gives us, and the computers you've connected.</li>
+</ul>
+<p>We don't store your passwords: sign-in is handled by WorkOS, using Google, Microsoft, GitHub, Apple or an emailed code.</p>
+
+<h2>Where it's kept</h2>
+<p>The service runs on FastAPI Cloud and your memory is kept in a Postgres database at Neon, both in the United States (AWS, us-east-1). Traffic is encrypted, and the database is encrypted at rest by our providers.</p>
+
+<h2>Who can see it</h2>
+<ul>
+<li><b>You</b>, and the assistants you connect to remember-me.</li>
+<li><b>Not other users.</b> Every request is tied to your account, and the database itself refuses to return anyone else's rows.</li>
+<li><b>Us, only if we must.</b> As the people running the service we can technically reach the database. Access is limited to the founder, and we look at stored content only to fix a problem you've asked us to fix, or if the law requires it.</li>
+</ul>
+
+<h2>What we don't do</h2>
+<ul>
+<li>We don't train AI models on your memory.</li>
+<li>We don't sell it or share it for advertising.</li>
+<li>We don't analyse its content. Conversation text is never written to our application logs or error reports.</li>
+<li>Building your map is done by your own assistant, on your own plan; remember-me doesn't send your memory to any AI service.</li>
+</ul>
+
+<h2>Your controls</h2>
+<ul>
+<li><b>Download</b> everything at any time from your <a href="/account">account page</a>, as plain files that also work offline.</li>
+<li><b>Delete</b> one project, or everything. Deletion removes it from the live database immediately. Our database provider keeps a short restore history for recovering from accidents; deleted data ages out of it within days.</li>
+<li><b>Remove</b> a connected computer, so it can no longer use your memory.</li>
+<li><b>Keep it off our servers.</b> With the remember-me plugin you can take projects offline onto your own computer, and choose to remove them from the cloud.</li>
+</ul>
+
+<h2>Contact</h2>
+<p>Questions or requests: [contact email to be added].</p>
+<p class="mut"><a href="/">remember-me</a> · <a href="/account">Account</a> · <a href="/map">Map</a></p>
+</main>
+</body>
+</html>

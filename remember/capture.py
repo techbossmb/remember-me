@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""remember.me capture adapters: turn a surface's native transcript into generic entries
+"""remember-me capture adapters: turn a surface's native transcript into generic entries
 (id, kind, role, ts, text), and append them to an append-only raw log with dedup by entry id.
 
 Adapters: Claude Code session .jsonl transcripts; claude.ai data export (conversations.json).

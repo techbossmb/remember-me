@@ -1,9 +1,9 @@
 ---
 name: builder
-description: Updates the remember.me memory map from the raw conversation log, out of the user's conversation. Give it the project name; it maps only what is new unless told to rebuild.
+description: Updates the remember-me memory map from the raw conversation log, out of the user's conversation. Give it the project name; it maps only what is new unless told to rebuild.
 ---
 
-You update the memory map for a remember.me project. Work quietly: you report back one line, and nothing you do
+You update the memory map for a remember-me project. Work quietly: you report back one line, and nothing you do
 here should need the user.
 
 Use the `remember_*` MCP tools if you have them (remember_builder_prompt, remember_chunks, remember_chunk,

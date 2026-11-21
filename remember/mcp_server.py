@@ -1,4 +1,4 @@
-"""remember.me MCP server (stdio, JSON-RPC 2.0, newline-delimited). Stdlib only.
+"""remember-me MCP server (stdio, JSON-RPC 2.0, newline-delimited). Stdlib only.
 
 Exposes the same operations as the CLI to any MCP client (Claude, Gemini CLI, Copilot/VS Code, Cursor, Codex, …).
 Each tool takes an optional `project`; otherwise the project is resolved from REMEMBER_PROJECT or the server's
@@ -14,13 +14,13 @@ import cli
 import memmap
 
 PROTOCOL = "2025-06-18"
-VERSION = "0.5.0"
+VERSION = "0.6.0"
 
 S = {"type": "string"}
 PROJECT = {"project": {"type": "string", "description": "the name of what the user is working on (remember_projects lists existing ones). Needed unless the app runs in the project's own folder; the tool says so if it can't tell."}}
 
 TOOLS = [
-    ("remember_guide", "How to use remember.me: read this first if you haven't been told how to use the remember tools.", {}, []),
+    ("remember_guide", "How to use remember-me: read this first if you haven't been told how to use the remember tools.", {}, []),
     ("remember_status", "What is stored for this project, how much is mapped, and what is not mapped yet.", {}, []),
     ("remember_overview", "The project's memory map: every thread with status and summary, standing rules, open items. "
      "Read it at the start of work; then open the threads that matter with remember_zoom.",
@@ -36,9 +36,11 @@ TOOLS = [
     ("remember_log", "Save conversation messages to the project's memory: to start memory from what is in your "
      "context, and again at natural pauses so the conversation is kept. Safe to repeat: messages already saved are "
      "skipped. User messages verbatim; source='recalled' when writing from context; ISO timestamps if known.",
-     {"session": S, "source": S, "note": S,
+     {"session": {"type": "string", "description": "a stable name for THIS conversation (a date and a few words on its "
+                  "topic, e.g. 2026-11-21-online-launch); reuse it every time you save from this conversation, so each "
+                  "chat stays its own file"}, "source": S, "note": S,
       "messages": {"type": "array", "items": {"type": "object", "properties": {"role": {"type": "string", "enum": ["user", "assistant", "summary"]}, "text": S, "ts": S}, "required": ["role", "text"]}}},
-     ["messages"]),
+     ["messages", "session"]),
     ("remember_show_map", "Start (or reuse) the local memory map viewer and return its link for the user to click. "
      "Use when the user asks to see their memory or map.", {}, []),
     ("remember_projects", "List the projects that have memory. Each tool takes `project`; use the name of what the "
@@ -51,7 +53,7 @@ TOOLS = [
      {"path": S, "picks": {"type": "array", "items": S}}, ["path"]),
     ("remember_ingest_sessions", "Bring in Claude Code session files already on the user's computer for a folder "
      "(only useful where Claude Code has been used).", {"folder": S}, []),
-    ("remember_mode", "Where this computer keeps the user's memory: here (offline) or in their remember.me account "
+    ("remember_mode", "Where this computer keeps the user's memory: here (offline) or in their remember-me account "
      "(online, the same on every device), and switching. Actions: status; connect, then connect_finish once the user "
      "has pressed Allow (signs this computer in to their account, once); go_online (uploads what this computer holds; "
      "replace=[projects] when the user chose this computer's copy over a different online one); go_offline (downloads "
@@ -141,7 +143,10 @@ def call(store, name, args):
     if name == "remember_log":
         p = cli.resolve_project(store, args.get("project"))
         msgs = [(m["role"], m.get("ts", ""), m["text"]) for m in args["messages"]]
-        return cli.log_messages(store, p, args.get("session") or "recalled", msgs, args.get("source") or "recalled", args.get("note"))
+        if not (args.get("session") or "").strip():
+            raise ValueError("pass `session`: a stable name for this conversation (a date and a few words on its "
+                             "topic), the same every time you save from it, so each chat stays its own file")
+        return cli.log_messages(store, p, args["session"], msgs, args.get("source") or "recalled", args.get("note"))
     if name == "remember_show_map":
         return run(["show"] + pj)
     if name == "remember_projects":
@@ -151,6 +156,11 @@ def call(store, name, args):
         act = args["action"]
         sub = {"autostart_on": ["autostart", "on"], "autostart_off": ["autostart", "off"]}.get(act, [act])
         return run(["viewer"] + sub)
+    if name == "remember_import" and not args.get("picks"):  # listing needs no project and stores nothing
+        try:
+            return cli.import_export(store, None, args["path"], list_only=True)
+        except SystemExit as e:
+            raise ValueError(str(e))
     if name == "remember_import":
         argv = ["import", args["path"]] + pj
         for p in args.get("picks") or []:
@@ -201,7 +211,7 @@ def call(store, name, args):
 
 
 LOCAL_TOOLS = {"remember_show_map", "remember_viewer", "remember_import", "remember_ingest_sessions", "remember_mode"}
-ONLINE_NOTE = ("You are connected to remember.me online: the user's memory is kept on the remember.me service under "
+ONLINE_NOTE = ("You are connected to remember-me online: the user's memory is kept on the remember-me service under "
                "their account, so it is the same from any device or assistant they connect. Always pass `project`. "
                "Tools that only exist on the user's own computer (local viewer controls, importing files from their "
                "disk) are not available here.\n\n")
@@ -268,10 +278,53 @@ def _local_or_forward(store, msg):
         text = f"memory is online, so the map is at {sync.server(store)}/map (no local viewer needed)"
         return {"jsonrpc": "2.0", "id": msg["id"], "result": {"content": [{"type": "text", "text": text}], "isError": False}}
     if name in ("remember_import", "remember_ingest_sessions"):
-        text = ("error: importing works with memory on this computer for now: go offline (remember_mode go_offline), "
-                "import, then go back online")
-        return {"jsonrpc": "2.0", "id": msg["id"], "result": {"content": [{"type": "text", "text": text}], "isError": True}}
+        return _import_online(store, msg)
     return sync.forward(store, msg)
+
+
+def _import_online(store, msg):
+    """Online mode on a computer: read the export or session files here (they're on this disk), then send the
+    conversations to the account with remember_log, one log file per conversation as offline."""
+    import shutil
+    import sync
+    import tempfile
+    from store import as_store
+    args = dict((msg.get("params") or {}).get("arguments") or {})
+    name = msg["params"]["name"]
+    reply = lambda text, err=False: {"jsonrpc": "2.0", "id": msg["id"], "result": {  # noqa: E731
+        "content": [{"type": "text", "text": text}], "isError": err}}
+    if name == "remember_import" and not args.get("picks"):
+        return respond(store, msg)  # just lists the export's conversations; nothing is stored
+    if not args.get("project"):
+        return reply("error: pass `project` (the account's project to import into)", True)
+    tmp = tempfile.mkdtemp(prefix="rm-import-")
+    try:
+        t = as_store(tmp)
+        p = cli.slug(args["project"])
+        try:
+            local = call(t, name, {**args, "project": p})
+        except Exception as e:
+            return reply(f"error: {e}", True)
+        sent = []
+        for fn in t.listdir(f"log/{p}"):
+            if not fn.endswith(".md") or fn.endswith(".compactions.md"):
+                continue
+            msgs = [{"role": r, "ts": ts, "text": body} for _, r, body, ts in memmap._parse_log(t, f"{p}/{fn}")
+                    if r in ("user", "assistant", "summary")]
+            for i in range(0, len(msgs), 100):
+                out = sync.forward(store, {"jsonrpc": "2.0", "id": msg["id"], "method": "tools/call", "params": {
+                    "name": "remember_log", "arguments": {"project": p, "session": fn[:-3], "source": "imported",
+                                                          "messages": msgs[i:i + 100]}}})
+                res = out.get("result") or {}
+                if res.get("isError"):
+                    return reply(res["content"][0]["text"], True)
+            sent.append(f"{fn[:-3]}: {len(msgs)} messages")
+        memmap._LOG_CACHE.clear()
+        if not sent:
+            return reply(f"error: nothing imported: {local}", True)
+        return reply("imported into the account (" + p + "):\n" + "\n".join(sent))
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
 
 
 def serve(store):

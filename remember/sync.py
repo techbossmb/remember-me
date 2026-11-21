@@ -1,8 +1,8 @@
-"""Online/offline switching for the local remember.me server. Stdlib only.
+"""Online/offline switching for the local remember-me server. Stdlib only.
 
 The local server (plugin / `remember mcp`) has a mode, kept in <store>/config.json:
   offline  memory is the files in the store folder (~/.remember); the default
-  online   every remember_* tool call is passed through to the user's remember.me account, so this computer, the
+  online   every remember_* tool call is passed through to the user's remember-me account, so this computer, the
            phone and the web all see the same memory
 
 Switching moves projects, so a project lives in one place at a time and there is never anything to merge:
@@ -78,7 +78,7 @@ def _http(store, method, path, body=None, raw=None, auth=True, ctype="applicatio
     headers = {"Accept": "application/json"}
     if auth:
         if not cfg.get("token"):
-            raise SyncError("this computer isn't connected to a remember.me account yet (remember_mode connect)")
+            raise SyncError("this computer isn't connected to a remember-me account yet (remember_mode connect)")
         headers["Authorization"] = "Bearer " + cfg["token"]
     data = raw if raw is not None else (json.dumps(body).encode() if body is not None else None)
     if data is not None:
@@ -95,11 +95,11 @@ def _http(store, method, path, body=None, raw=None, auth=True, ctype="applicatio
         except ValueError:
             pass
         if e.code == 401 and auth:
-            raise SyncError("remember.me no longer accepts this computer's sign-in; connect it again "
+            raise SyncError("remember-me no longer accepts this computer's sign-in; connect it again "
                             "(remember_mode connect)") from None
-        raise SyncError(f"remember.me said {e.code}: {msg}") from None
+        raise SyncError(f"remember-me said {e.code}: {msg}") from None
     except urllib.error.URLError as e:
-        raise SyncError(f"can't reach remember.me ({e.reason}); check the internet connection") from None
+        raise SyncError(f"can't reach remember-me ({e.reason}); check the internet connection") from None
 
 
 # ---------------------------------------------------------------- connect this computer
@@ -110,7 +110,7 @@ def connect(store):
     r = _http(store, "POST", "/device/start", {"name": name}, auth=False)
     cfg.update(server=server(store), pending=r["device_code"], device=name)
     save_config(store, cfg)
-    return (f"To connect this computer to the user's remember.me account, ask them to open this link and press "
+    return (f"To connect this computer to the user's remember-me account, ask them to open this link and press "
             f"Allow (it asks them to sign in first if needed):\n{r['verification_uri_complete']}\n"
             f"The page shows the code {r['user_code']}; it should match. Then call remember_mode with action "
             f"connect_finish.")
@@ -132,7 +132,7 @@ def connect_finish(store, wait=45):
             cfg["token"] = r["token"]
             cfg.pop("pending", None)
             save_config(store, cfg)
-            return (f"connected: {cfg['device']} can now use the user's remember.me account. Memory here is still "
+            return (f"connected: {cfg['device']} can now use the user's remember-me account. Memory here is still "
                     f"{mode(store)}; remember_mode go_online moves it to the account.")
         if time.time() > deadline:
             return "not allowed yet: ask the user to open the link and press Allow, then call connect_finish again"
@@ -148,10 +148,10 @@ def _local_projects(store):
 
 def status(store):
     cfg = config(store)
-    lines = [f"mode: {mode(store)}  (memory is " + ("in the user's remember.me account)" if mode(store) == "online"
+    lines = [f"mode: {mode(store)}  (memory is " + ("in the user's remember-me account)" if mode(store) == "online"
                                                    else f"in {as_store(store).path} on this computer)")]
     if not cfg.get("token"):
-        lines.append("this computer isn't connected to a remember.me account (remember_mode connect)")
+        lines.append("this computer isn't connected to a remember-me account (remember_mode connect)")
         return "\n".join(lines)
     lines.append(f"connected as {cfg.get('device')} to {server(store)}")
     try:
@@ -312,7 +312,7 @@ def go_online(store, replace=()):
     cfg = config(store)
     cfg["mode"] = "online"
     save_config(store, cfg)
-    return "online: memory now lives in the user's remember.me account, the same on every device.\n" + "\n".join(report)
+    return "online: memory now lives in the user's remember-me account, the same on every device.\n" + "\n".join(report)
 
 
 # ---------------------------------------------------------------- pass-through in online mode

@@ -1,9 +1,9 @@
 ---
 name: remember
-description: Long-term memory for this project (remember.me). Use when the user wants to start memory here, asks what was decided or where work stopped ("where were we", "what did we decide about X"), wants to see their memory map, or wants to import chat history.
+description: Long-term memory for this project (remember-me). Use when the user wants to start memory here, asks what was decided or where work stopped ("where were we", "what did we decide about X"), wants to see their memory map, or wants to import chat history.
 ---
 
-# remember.me
+# remember-me
 
 Use the `remember_*` tools for everything. They run where the memory lives (the user's computer), whatever
 environment you are in. Don't run the memory scripts with a shell: depending on the app, your shell may be a

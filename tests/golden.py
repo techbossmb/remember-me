@@ -103,6 +103,7 @@ def scenario():
     r = mcp(env, [("remember_log", {"project": "demo", "session": "followup", "source": "recalled", "messages": CONV_B}),
                   ("remember_log", {"project": "demo", "session": "followup", "messages": CONV_B[:1]}),
                   ("remember_log", {"messages": CONV_B[:1]}),
+                  ("remember_log", {"project": "demo", "messages": CONV_B[:1]}),
                   ("remember_projects", {}),
                   ("remember_status", {"project": "demo"})])
     for i, t in enumerate(r):

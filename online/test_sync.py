@@ -1,4 +1,4 @@
-"""End to end: a computer's local remember.me server switching between offline and online against a real running
+"""End to end: a computer's local remember-me server switching between offline and online against a real running
 service (uvicorn) and Postgres. Run: REMEMBER_DATABASE_URL=postgresql://<non-superuser>@... python3 online/test_sync.py"""
 import json
 import os
@@ -99,7 +99,7 @@ try:
     check("connect gives link and code", f"{URL}/device?code=" in t and code in t, t)
     cookie = "rm_session=" + online._sign({"u": USER, "exp": 9999999999})
     page = urllib.request.urlopen(urllib.request.Request(f"{URL}/device?code={code}", headers={"Cookie": cookie})).read().decode()
-    check("approval page names the computer", "Allow" in page and "remember.me memory" in page, page[:300])
+    check("approval page names the computer", "Allow" in page and "remember-me memory" in page, page[:300])
     done = urllib.request.urlopen(urllib.request.Request(f"{URL}/device/approve", method="POST", data=f"code={code}".encode(),
                                                          headers={"Cookie": cookie, "Content-Type": "application/x-www-form-urlencoded"})).read().decode()
     check("approved", "is connected" in done, done[:300])
@@ -121,6 +121,16 @@ try:
     check("Mac saves online in online mode", "+1" in t, t)
     check("phone sees the Mac's new message", "dry cleaning" in phone_tool("remember_grep", project="notes", pattern="cleaning"))
     check("viewer points online", "/map" in mac_tool("remember_viewer", action="status"))
+    export = os.path.join(STORE, "..", f"export-{run}.json")
+    with open(export, "w") as f:
+        json.dump([{"uuid": "c0ffee00-1111", "name": "Trip planning", "created_at": "2026-10-01T09:00:00Z",
+                    "updated_at": "2026-10-01T09:05:00Z", "chat_messages": [
+                        {"uuid": "m1", "sender": "human", "created_at": "2026-10-01T09:00:00Z", "content": [{"type": "text", "text": "Plan a weekend in Lisbon in May"}]},
+                        {"uuid": "m2", "sender": "assistant", "created_at": "2026-10-01T09:01:00Z", "content": [{"type": "text", "text": "Day one: Alfama and the castle."}]}]}], f)
+    check("import lists while online", "Trip planning" in mac_tool("remember_import", path=export))
+    t = mac_tool("remember_import", path=export, picks=["all"], project="trips")
+    check("import while online sends to the account", "imported into the account" in t and "2 messages" in t, t)
+    check("phone sees the imported chat", "Lisbon" in phone_tool("remember_grep", project="trips", pattern="Lisbon"))
 
     # going offline, keeping a read-only copy online
     t = mac_tool("remember_mode", action="go_offline")

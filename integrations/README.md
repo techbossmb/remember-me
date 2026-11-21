@@ -1,4 +1,4 @@
-# Using remember.me from other assistants
+# Using remember-me from other assistants
 
 Everything is plain files in `~/.remember`, so a map built with one assistant works in any other.
 There are two ways in, and you can use both:

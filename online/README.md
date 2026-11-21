@@ -1,4 +1,4 @@
-# remember.me online (proof of concept)
+# remember-me online (proof of concept)
 
 The same `remember_*` tools as the local plugin, served over MCP's HTTP transport, with each signed-in user's memory
 in Postgres. Memory is stored in the same layout as `~/.remember` (see `remember/store.py`), so `/account/export`
@@ -16,6 +16,9 @@ gives a zip that works offline, and offline memory can be loaded online.
 | `POST /mcp` | the MCP endpoint (JSON responses; no streaming needed) |
 | `GET /.well-known/oauth-protected-resource` | tells clients where to sign in |
 | `GET /account/export` · `DELETE /account/data` | a user's whole memory as a zip; delete all of it |
+| `GET /` · `/privacy` | home page with connect instructions; privacy policy (draft) |
+| `GET /map` · `/account` | live map; account page (projects, export, import, computers, delete), browser sign-in |
+| `/device/*` · `/api/sync/*` | computer sign-in (device code) and taking projects offline / back online |
 | `GET /healthz` · `GET /healthz/db` | liveness; database round-trip time (shows Neon's wake-up delay) |
 
 ## Settings
@@ -31,4 +34,3 @@ delete) and `REMEMBER_TEST_BACKEND=pg REMEMBER_DATABASE_URL=… python3 tests/go
   users; the next step is having commands return text instead of printing.
 - Each log file is one row that grows as messages are added. Fine at personal scale; split into per-message rows
   if logs get large.
-- No hosted map viewer yet; `remember_show_map` is local-only.

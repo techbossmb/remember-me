@@ -1,5 +1,5 @@
-remember.me keeps a project's conversations (verbatim) and a map of them. Everything goes through the remember_*
-tools; they run where the memory lives (the user's computer, or their remember.me account online), whatever
+remember-me keeps a project's conversations (verbatim) and a map of them. Everything goes through the remember_*
+tools; they run where the memory lives (the user's computer, or their remember-me account online), whatever
 assistant or app you are in. Pass `project`
 (the name of what the user is working on; remember_projects lists existing ones; ask once if unclear).
 
@@ -17,7 +17,8 @@ Starting memory (when the user asks, or accepts the offer)
    written (long tool output summarised in a line), source "recalled".
 3. Say plainly what is missing: if your context starts with a summary of earlier turns, the verbatim start is gone.
    Where remember_import is available, a claude.ai data export can be imported selectively (it lists
-   conversations; the user picks).
+   conversations; the user picks). Online without it, the user can do the same on their account page:
+   https://remember-me.fastapicloud.dev/account (they pick the conversations; it's read in their browser).
 4. Build the map (see "Updating the map"), then show it: remember_show_map returns a link for the user to click.
 Give each conversation its own `session` name (a date and a few words on its topic) and reuse it every time you
 save from that conversation, so each chat stays its own file in the log.
@@ -34,8 +35,8 @@ Updating the map
   remember_apply_ops, then remember_coverage and remember_validate. Don't mention it unless asked.
 
 Online and offline
-- Memory lives either in the user's remember.me account (online: the same on every device) or on one computer
-  (offline). On a computer running the local remember.me server, remember_mode moves it: status says where it is;
+- Memory lives either in the user's remember-me account (online: the same on every device) or on one computer
+  (offline). On a computer running the local remember-me server, remember_mode moves it: status says where it is;
   connect (once) gives the user a link to allow this computer, then connect_finish; go_online and go_offline switch.
 - The first time someone goes offline, ask which they mean: keep a read-only copy online while away
   (keep_online=true), or remove it from the cloud (keep_online=false). If go_online reports a conflict (different

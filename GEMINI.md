@@ -1,6 +1,6 @@
-# Long-term memory (remember.me)
+# Long-term memory (remember-me)
 
-remember.me keeps a project's conversations (verbatim) and a map of them, on the user's computer. Everything goes
+remember-me keeps a project's conversations (verbatim) and a map of them, on the user's computer. Everything goes
 through the remember_* tools; they run where the memory lives, whatever assistant or app you are in. Pass `project`
 (the name of what the user is working on; remember_projects lists existing ones; ask once if unclear).
 

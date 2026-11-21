@@ -1,15 +1,19 @@
 {
   "name": "remember-me",
-  "version": "0.5.0",
-  "description": "Long-term memory that survives compaction: a verbatim log of your conversations plus a map of them, in plain files any assistant can use.",
+  "version": "0.6.0",
+  "description": "Long-term memory for your assistant: keeps your conversations word for word and a map of what was decided, what's open and your standing rules, so any new chat can pick up where you left off. Online (any device) or on your own computer.",
   "author": {
-    "name": "remember.me"
+    "name": "remember-me"
   },
   "license": "MIT",
   "keywords": [
     "memory",
-    "compaction",
+    "long-term memory",
     "context",
+    "compaction",
+    "projects",
     "mcp"
-  ]
+  ],
+  "homepage": "https://remember-me.fastapicloud.dev",
+  "repository": "https://github.com/techbossmb/remember-me"
 }

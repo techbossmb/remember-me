@@ -36,7 +36,7 @@ def make_handler(root):
             path = self.path.split("?", 1)[0]
             try:
                 if path == "/api/ping":
-                    self._send(200, json.dumps({"app": "remember.me", "pid": os.getpid(), "version": VERSION,
+                    self._send(200, json.dumps({"app": "remember-me", "pid": os.getpid(), "version": VERSION,
                                                 "root": root}), "application/json")
                 elif path in ("/", "/index.html"):
                     self._send(200, viz.page(None), "text/html; charset=utf-8")
@@ -77,7 +77,7 @@ def main():
     ap.add_argument("--root", default=viz.ROOT, help="folder containing maps/ and log/")
     a = ap.parse_args()
     srv = ThreadingHTTPServer(("127.0.0.1", a.port), make_handler(os.path.abspath(a.root)))
-    print(f"remember.me atlas: http://127.0.0.1:{a.port}  (maps from {os.path.abspath(a.root)}; Ctrl+C to stop)")
+    print(f"remember-me atlas: http://127.0.0.1:{a.port}  (maps from {os.path.abspath(a.root)}; Ctrl+C to stop)")
     try:
         srv.serve_forever()
     except KeyboardInterrupt:

@@ -19,8 +19,10 @@ followup: +0 messages (recalled), 1 already saved
 === mcp 2
 ERROR error: Which project? This app doesn't say which folder or project you're in, so pass `project`: the name of what the user is working on. Projects with memory: demo. Reuse an existing name when it's the same work; ask the user once if it's unclear.
 === mcp 3
-projects with memory: demo
+ERROR error: pass `session`: a stable name for this conversation (a date and a few words on its topic), the same every time you save from it, so each chat stays its own file
 === mcp 4
+projects with memory: demo
+=== mcp 5
 project: demo   store: <STORE>
 log: 2 session(s), 7 messages, 2026-09-01 → 2026-09-03
 note: 2 session(s) were written from an agent's context (recalled, not verbatim).

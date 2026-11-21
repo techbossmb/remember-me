@@ -303,6 +303,8 @@ def log_messages(store, project, session, msgs, source="recalled", note=None):
 # ---------------------------------------------------------------- import: claude.ai data export, selectively
 
 def _load_export(path):
+    if os.path.isfile(path) and path.lower().endswith(".json"):  # conversations.json on its own
+        return json.load(open(path, encoding="utf-8"))
     if os.path.isdir(path):
         for f in glob.glob(os.path.join(path, "**", "conversations.json"), recursive=True):
             return json.load(open(f, encoding="utf-8"))
@@ -372,7 +374,7 @@ def autobuild_mode():
 CHILD_ENV_DROP = ("CLAUDE_CODE_SESSION_ID", "CLAUDECODE", "CLAUDE_CODE_CHILD_SESSION", "CLAUDE_CODE_ENTRYPOINT",
                   "CLAUDE_CODE_REMOTE_SESSION_ID", "CLAUDE_CODE_SESSION_ATTENDED")
 
-BUILD_PROMPT = """You are the remember.me map builder for project '{p}'. Use only the remember_* tools.
+BUILD_PROMPT = """You are the remember-me map builder for project '{p}'. Use only the remember_* tools.
 1. Call remember_builder_prompt and follow it exactly. Where it says `remember <command>`, use the matching tool:
    overview --ids -> remember_overview(ids=true); chunks --new -> remember_chunks(new_only=true);
    chunk N -> remember_chunk(n=N); ops -> remember_apply_ops(ops=[...]); coverage -> remember_coverage;
@@ -461,7 +463,7 @@ def show_map(store, project, open_browser=False):
     """Make sure the viewer is running (start it, or replace a stale one) and return its link."""
     import viewer
     if not as_store(store).path:
-        raise SystemExit("the map viewer runs on the user's computer; online, the map is on the remember.me website")
+        raise SystemExit("the map viewer runs on the user's computer; online, the map is on the remember-me website")
     port = viewer.start(as_store(store).path)
     url = f"http://127.0.0.1:{port}/" + (f"?project={project}" if project else "")
     if open_browser:
@@ -475,16 +477,16 @@ def show_map(store, project, open_browser=False):
 
 # ---------------------------------------------------------------- Claude Code hook
 
-SNIPPET = """## Long-term memory (remember.me)
+SNIPPET = """## Long-term memory (remember-me)
 This project keeps its conversations and a map of them in plain files on this computer (`~/.remember`).
-Use the remember_* tools (MCP server: `python3 <remember.me folder>/remember/cli.py mcp`) and follow `remember_guide`:
+Use the remember_* tools (MCP server: `python3 <remember-me folder>/remember/cli.py mcp`) and follow `remember_guide`:
 read `remember_overview` at the start of work, open threads with `remember_zoom`, save new turns with `remember_log`
 at natural pauses, and keep the map current when `remember_status` says messages aren't mapped yet.
 Without the tools, the same commands exist as `{cmd} <command>` (`{cmd} --help`).
 """
 
 
-UPDATE_NOTE = ("remember.me: {n} messages aren't in the memory map yet. After you finish what the user is asking, "
+UPDATE_NOTE = ("remember-me: {n} messages aren't in the memory map yet. After you finish what the user is asking, "
                "update it without involving the user: hand it to a sub-agent so the work stays out of this conversation "
                "(in Claude Code or Cowork, the remember-me:builder agent, with the project name '{p}'); if you can't start "
                "sub-agents, follow remember_builder_prompt for the new chunks only. No need to mention it unless asked.")
@@ -531,14 +533,14 @@ def hook(store):
             n = len(unmapped_msgs(g, memmap.timeline(store, project)))
             note = maybe_autobuild(store, project, "SessionStart")
             if note:
-                state = f"remember.me: {note}; the map below may lag the last few messages (the raw log is complete)."
+                state = f"remember-me: {note}; the map below may lag the last few messages (the raw log is complete)."
             else:
                 state = session_update_note(store, project, n, "SessionStart") or \
-                    "remember.me memory for this project; use the remember_* tools (remember_guide)."
+                    "remember-me memory for this project; use the remember_* tools (remember_guide)."
             ctx = state + "\n\n" + ov
         else:
             n = len(claude_code_sessions(cwd))
-            ctx = ("remember.me (long-term memory) is installed but not started for this folder. "
+            ctx = ("remember-me (long-term memory) is installed but not started for this folder. "
                    + (f"{n} earlier Claude Code session file(s) for this folder are on disk and could be mapped. " if n else "")
                    + "If the user wants it, the remember skill starts it from what is already available.")
         print(json.dumps({"hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext": ctx[:OVERVIEW_BUDGET]}}))
@@ -646,7 +648,7 @@ def main(argv=None, store=None):
             targets = [f for f in ("AGENTS.md", "CLAUDE.md", "GEMINI.md", ".github/copilot-instructions.md") if os.path.exists(f)] or ["AGENTS.md"]
             for t in targets:
                 body = open(t, encoding="utf-8").read() if os.path.exists(t) else ""
-                if "remember.me" not in body:
+                if "remember-me" not in body and "remember.me" not in body:
                     with open(t, "a", encoding="utf-8") as f:
                         f.write(("\n" if body else "") + snip)
                     msg += f"\nadded the memory snippet to {t}"
@@ -718,7 +720,7 @@ def main(argv=None, store=None):
         port = int(a.args[0]) if a.args else 8765
         srv = ThreadingHTTPServer(("127.0.0.1", port), serve.make_handler(store.path))
         url = f"http://127.0.0.1:{port}"
-        print(f"remember.me atlas (live, all projects): {url}   Ctrl+C to stop")
+        print(f"remember-me atlas (live, all projects): {url}   Ctrl+C to stop")
         if a.open:
             import webbrowser
             webbrowser.open(url)

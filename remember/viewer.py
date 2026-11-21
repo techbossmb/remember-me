@@ -1,7 +1,7 @@
 """The map viewer as a background service: start/stop/status/restart, run-at-login, and identification
 by port so it can be stopped from anywhere ("I don't know which window it's running in").
 
-The viewer answers GET /api/ping with {"app": "remember.me", "pid", "version", "root"}. Every command finds it
+The viewer answers GET /api/ping with {"app": "remember-me", "pid", "version", "root"}. Every command finds it
 through that, so it never touches some other program that happens to use the port, and a viewer left over from
 an older version is replaced automatically.
 """
@@ -38,7 +38,7 @@ def ping(port):
         with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/ping", timeout=0.7) as r:
             body = r.read().decode("utf-8", "replace")
         d = json.loads(body)
-        return d if d.get("app") == "remember.me" else None
+        return d if d.get("app") in ("remember-me", "remember.me") else None  # older viewers said remember.me
     except Exception:
         return None
 
@@ -49,7 +49,7 @@ def _port_free(port):
 
 
 def find(store):
-    """(port, identity) of a running remember.me viewer for this store, else (None, None)."""
+    """(port, identity) of a running remember-me viewer for this store, else (None, None)."""
     info = os.path.join(store, "viewer.json")
     tried = []
     if os.path.exists(info):
@@ -167,7 +167,7 @@ def install_service(store):
     p = _systemd_path()
     os.makedirs(os.path.dirname(p), exist_ok=True)
     with open(p, "w", encoding="utf-8") as f:
-        f.write(f"[Unit]\nDescription=remember.me map viewer\n\n[Service]\nType=oneshot\nRemainAfterExit=yes\n"
+        f.write(f"[Unit]\nDescription=remember-me map viewer\n\n[Service]\nType=oneshot\nRemainAfterExit=yes\n"
                 f"Environment=REMEMBER_HOME={store}\nExecStart={py} {cli} viewer start\n"
                 f"ExecStop={py} {cli} viewer stop\n\n[Install]\nWantedBy=default.target\n")
     r = subprocess.run(["systemctl", "--user", "enable", "--now", "remember-viewer.service"], capture_output=True, text=True)

@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>remember-me · account</title>
+<style>
+:root{--bg:#fbfaf7;--panel:#ffffff;--fg:#1f1d1a;--mut:#6b665e;--line:#e7e3db;--acc:#2f5d50;--acc-fg:#ffffff;--warn:#9a3b2e;--chip:#f1eee7}
+@media (prefers-color-scheme:dark){:root{--bg:#161513;--panel:#1e1c1a;--fg:#ece8e1;--mut:#a39d93;--line:#34312c;--acc:#7fb3a3;--acc-fg:#10201b;--warn:#e08a7b;--chip:#2a2825}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.55 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+header{display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding:14px 16px;border-bottom:1px solid var(--line)}
+.brand{font-weight:650;letter-spacing:-.01em}.brand small{color:var(--mut);font-weight:400;margin-left:6px}
+header nav{margin-left:auto;display:flex;gap:14px;font-size:14px}
+a{color:var(--acc)}
+main{max-width:760px;margin:0 auto;padding:20px 16px 60px}
+section{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px;margin:0 0 16px}
+h2{font-size:15px;margin:0 0 4px}
+p.hint{color:var(--mut);margin:0 0 12px;font-size:14px}
+.row{display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--line)}
+.row:first-of-type{border-top:0}
+.row .grow{flex:1;min-width:0}
+.row .name{font-weight:600;overflow-wrap:anywhere}
+.row .meta{color:var(--mut);font-size:13px}
+.chip{display:inline-block;background:var(--chip);border-radius:999px;padding:1px 8px;font-size:12px;color:var(--mut);margin-left:6px}
+button,.btn{font:inherit;font-size:14px;border-radius:8px;padding:7px 14px;border:1px solid var(--line);background:var(--panel);color:var(--fg);cursor:pointer;text-decoration:none;display:inline-block}
+button.primary,.btn.primary{background:var(--acc);color:var(--acc-fg);border-color:var(--acc)}
+button.danger{color:var(--warn)}
+button:disabled{opacity:.5;cursor:default}
+input[type=text]{font:inherit;padding:7px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg);width:100%}
+label.pick{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-top:1px solid var(--line)}
+label.pick small{color:var(--mut);display:block}
+.picker{max-height:340px;overflow:auto;margin:8px 0 12px}
+.status{font-size:14px;margin-top:10px;white-space:pre-wrap}
+.status.err{color:var(--warn)}
+.empty{color:var(--mut);font-size:14px}
+.field{margin:10px 0}
+.field span{display:block;font-size:13px;color:var(--mut);margin-bottom:4px}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">remember-me<small>account</small></div>
+  <nav><span id="who" class="meta"></span><a href="/map">Map</a><a href="/privacy">Privacy</a><a href="/logout">Sign out</a></nav>
+</header>
+<main>
+  <section>
+    <h2>Projects</h2>
+    <p class="hint">Each project is its own memory: the conversations, word for word, and the map of them.</p>
+    <div id="projects"><div class="empty">Loading…</div></div>
+  </section>
+
+  <section>
+    <h2>Download your memory</h2>
+    <p class="hint">Everything, as a zip in the same layout remember-me uses on a computer (<code>~/.remember</code>), so it works offline too.</p>
+    <a class="btn primary" href="/account/export">Download zip</a>
+  </section>
+
+  <section>
+    <h2>Bring memory in</h2>
+    <p class="hint">Choose a claude.ai data export (claude.ai → Settings → Privacy → Export data) or a zip of a <code>.remember</code> folder from a computer. It's read here in your browser; only what you pick is sent.</p>
+    <input type="file" id="file" accept=".zip,.json">
+    <div id="importer"></div>
+    <div id="importStatus" class="status"></div>
+  </section>
+
+  <section>
+    <h2>Connected computers</h2>
+    <p class="hint">Computers that can use your memory through the remember-me plugin. Remove one you no longer use.</p>
+    <div id="devices"><div class="empty">Loading…</div></div>
+  </section>
+
+  <section>
+    <h2>Delete everything</h2>
+    <p class="hint">Removes all your projects from remember-me. Download a copy first if you might want it back. Type <b>delete everything</b> to confirm.</p>
+    <div class="field"><input type="text" id="confirmAll" placeholder="delete everything" autocomplete="off"></div>
+    <button class="danger" id="deleteAll" disabled>Delete all my memory</button>
+    <div id="allStatus" class="status"></div>
+  </section>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script>
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const kb=n=>n<1024?`${n} B`:n<1048576?`${(n/1024).toFixed(1)} KB`:`${(n/1048576).toFixed(1)} MB`;
+const slug=s=>String(s||"").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"");
+async function api(path,opts={}){
+  const r=await fetch(path,{credentials:"same-origin",...opts,headers:{"Content-Type":"application/json",...(opts.headers||{})}});
+  if(r.status===401){location.href="/login?next=/account";throw new Error("signed out")}
+  const t=await r.text(); let d; try{d=JSON.parse(t)}catch{d={error:t}}
+  if(!r.ok) throw Object.assign(new Error(d.error||r.statusText),{data:d,status:r.status});
+  return d;
+}
+let ACCOUNT={projects:[],devices:[]};
+async function refresh(){
+  ACCOUNT=await api("/api/account");
+  $("#who").textContent=ACCOUNT.email||"";
+  $("#projects").innerHTML=ACCOUNT.projects.length?ACCOUNT.projects.map(p=>`
+    <div class="row"><div class="grow"><div class="name">${esc(p.name)}${p.held?`<span class="chip">offline on ${esc(p.held.device)}</span>`:""}${p.mapped?"":`<span class="chip">not mapped yet</span>`}</div>
+    <div class="meta">${p.chats} chat${p.chats===1?"":"s"} · ${kb(p.bytes)}</div></div>
+    <button class="danger" data-del="${esc(p.name)}">Delete</button></div>`).join("")
+    :`<div class="empty">No projects yet. In a chat, ask your assistant to "start memory for this project".</div>`;
+  $("#devices").innerHTML=ACCOUNT.devices.length?ACCOUNT.devices.map(d=>`
+    <div class="row"><div class="grow"><div class="name">${esc(d.name)}</div>
+    <div class="meta">connected ${esc(d.created.slice(0,10))}${d.last_used?` · last used ${esc(d.last_used.slice(0,10))}`:""}</div></div>
+    <button class="danger" data-dev="${esc(d.id)}">Remove</button></div>`).join("")
+    :`<div class="empty">None. On a computer with the plugin, ask your assistant to "connect this computer to my remember-me account".</div>`;
+}
+document.addEventListener("click",async e=>{
+  const p=e.target.closest("[data-del]"), d=e.target.closest("[data-dev]");
+  if(p){ if(!confirm(`Delete the project "${p.dataset.del}" and everything in it? This can't be undone.`))return;
+    await api("/api/account/project?name="+encodeURIComponent(p.dataset.del),{method:"DELETE"}); refresh(); }
+  if(d){ if(!confirm("Remove this computer? It will need to be connected again to use your memory."))return;
+    await api("/api/account/device?id="+encodeURIComponent(d.dataset.dev),{method:"DELETE"}); refresh(); }
+});
+$("#confirmAll").oninput=e=>$("#deleteAll").disabled=e.target.value.trim()!=="delete everything";
+$("#deleteAll").onclick=async()=>{
+  try{await api("/api/account/all?confirm="+encodeURIComponent("delete everything"),{method:"DELETE"});
+    $("#allStatus").textContent="Deleted."; $("#confirmAll").value=""; $("#deleteAll").disabled=true; refresh();}
+  catch(err){$("#allStatus").textContent=err.message;$("#allStatus").className="status err"}
+};
+
+/* ---------- import ---------- */
+function say(msg,err){const s=$("#importStatus");s.textContent=msg;s.className="status"+(err?" err":"")}
+$("#file").onchange=async e=>{
+  const f=e.target.files[0]; $("#importer").innerHTML=""; say("");
+  if(!f)return;
+  try{
+    if(f.name.endsWith(".json")) return claudePicker(JSON.parse(await f.text()));
+    const zip=await JSZip.loadAsync(f);
+    let conv=Object.keys(zip.files).find(n=>n.endsWith("conversations.json"));
+    if(!conv){const inner=Object.keys(zip.files).find(n=>/(^|\/)conversations[^/]*\.zip$/.test(n));
+      if(inner){const z2=await JSZip.loadAsync(await zip.file(inner).async("arraybuffer"));
+        conv=Object.keys(z2.files).find(n=>n.endsWith("conversations.json"));
+        if(conv) return claudePicker(JSON.parse(await z2.file(conv).async("string")));}}
+    if(conv) return claudePicker(JSON.parse(await zip.file(conv).async("string")));
+    return folderPicker(zip);
+  }catch(err){say("Couldn't read that file: "+err.message,true)}
+};
+
+function claudePicker(convs){
+  if(!Array.isArray(convs)||!convs.length) return say("No conversations found in that file.",true);
+  convs.sort((a,b)=>(b.updated_at||"").localeCompare(a.updated_at||""));
+  $("#importer").innerHTML=`
+    <p class="hint" style="margin-top:12px">${convs.length} conversations. Tick the ones that belong to one project.</p>
+    <div class="field"><span>Project</span><input type="text" id="proj" list="projList" placeholder="e.g. course-prep">
+      <datalist id="projList">${ACCOUNT.projects.map(p=>`<option value="${esc(p.name)}">`).join("")}</datalist></div>
+    <div class="picker">${convs.map((c,i)=>`<label class="pick"><input type="checkbox" data-i="${i}">
+      <span>${esc(c.name||"(untitled)")}<small>${(c.chat_messages||[]).length} messages · ${esc((c.created_at||"").slice(0,10))} → ${esc((c.updated_at||"").slice(0,10))}</small></span></label>`).join("")}</div>
+    <button class="primary" id="go">Import selected</button>`;
+  $("#go").onclick=async()=>{
+    const project=slug($("#proj").value); const picked=[...document.querySelectorAll("[data-i]:checked")].map(x=>convs[+x.dataset.i]);
+    if(!project) return say("Name the project first.",true);
+    if(!picked.length) return say("Tick at least one conversation.",true);
+    $("#go").disabled=true; const out=[];
+    try{
+      for(let i=0;i<picked.length;i+=10){
+        say(`Importing ${Math.min(i+10,picked.length)} of ${picked.length}…`);
+        const r=await api("/api/account/import/claude",{method:"POST",body:JSON.stringify({project,conversations:picked.slice(i,i+10)})});
+        out.push(r.report);
+      }
+      say(`Imported into ${project}:\n${out.join("\n")}\n\nNext time you work in this project, your assistant will add these to the map.`);
+      refresh();
+    }catch(err){say(err.message,true)}finally{$("#go").disabled=false}
+  };
+}
+
+async function folderPicker(zip){
+  // a zip of a .remember folder: find log/<project>/ and maps/<project>/, whatever folder they sit under
+  const files=Object.keys(zip.files).filter(n=>!zip.files[n].dir);
+  const projects={};
+  for(const n of files){
+    const m=n.match(/^(.*?)(log|maps)\/([^/]+)\/(.+)$/); if(!m)continue;
+    const [_,base,sub,p,rest]=m; if(/(^|\/)\.lock$|\.building$|\.nudged$/.test(rest))continue;
+    (projects[p]=projects[p]||{base,files:[]}).files.push({zipPath:n,path:`${sub}/${p}/${rest}`});
+  }
+  const names=Object.keys(projects).sort();
+  if(!names.length) return say("That zip doesn't look like a claude.ai export or a .remember folder.",true);
+  const have=new Set(ACCOUNT.projects.map(p=>p.name));
+  $("#importer").innerHTML=`
+    <p class="hint" style="margin-top:12px">Projects in this folder. Ones you already have here are replaced only if you tick "replace".</p>
+    <div class="picker">${names.map(p=>`<label class="pick"><input type="checkbox" data-p="${esc(p)}" ${have.has(p)?"":"checked"}>
+      <span>${esc(p)}<small>${projects[p].files.length} files${have.has(p)?" · already here":""}</small></span></label>`).join("")}</div>
+    <label class="pick" style="border-top:0"><input type="checkbox" id="replace"><span>Replace projects that are already here with these copies</span></label>
+    <button class="primary" id="go">Bring in selected</button>`;
+  $("#go").onclick=async()=>{
+    const picked=[...document.querySelectorAll("[data-p]:checked")].map(x=>x.dataset.p);
+    if(!picked.length) return say("Tick at least one project.",true);
+    $("#go").disabled=true; const out=[];
+    try{
+      for(const p of picked){
+        say(`Bringing in ${p}…`);
+        const files={}; for(const f of projects[p].files) files[f.path]=await zip.file(f.zipPath).async("string");
+        try{ const r=await api("/api/account/import/files",{method:"POST",body:JSON.stringify({project:p,files,replace:$("#replace").checked})});
+          out.push(`${p}: ${r.files} files${r.replaced?" (replaced)":""}`); }
+        catch(err){ out.push(`${p}: ${err.message}${err.data&&err.data.exists?" (tick replace to overwrite it)":""}`); }
+      }
+      say(out.join("\n")); refresh();
+    }finally{$("#go").disabled=false}
+  };
+}
+refresh().catch(err=>$("#projects").innerHTML=`<div class="empty">${esc(err.message)}</div>`);
+</script>
+</body>
+</html>

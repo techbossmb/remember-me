@@ -1,15 +1,15 @@
-# remember.me
+# remember-me
 
 Memory for AI assistants that survives compaction and new sessions: a verbatim log of your conversations, plus a map
 of it (threads with their decisions and open questions, standing rules, to-do lists, procedures), each entry pointing
 back to the exact messages it came from. Shared by every assistant you connect.
 
 Two ways to keep it:
-- **Online** (recommended): your remember.me account, the same from any device or assistant, with a live map at
+- **Online** (recommended): your remember-me account, the same from any device or assistant, with a live map at
   https://remember-me.fastapicloud.dev/map.
 - **On your computer**: plain files in `~/.remember`, nothing leaves the machine.
 
-**To set it up, tell your assistant:** "Set up remember.me from github.com/techbossmb/remember-me". It does the rest
+**To set it up, tell your assistant:** "Set up remember-me from github.com/techbossmb/remember-me". It does the rest
 and tells you if it needs a click from you.
 
 > Early prototype. Online works end to end in the Claude app (web, desktop and phone); on-your-computer works in the
@@ -24,11 +24,11 @@ can't do (a click in an app's settings), and then say exactly what to click. Don
 
 ### 1. Online (default; use this unless the user wants memory kept only on their computer)
 
-remember.me online is a remote MCP server with sign-in: `https://remember-me.fastapicloud.dev/mcp`. Signing in
+remember-me online is a remote MCP server with sign-in: `https://remember-me.fastapicloud.dev/mcp`. Signing in
 creates the user's account (Google, Microsoft, GitHub, Apple or email).
 
 - **Claude (app, web, phone):** you can't add a connector yourself. Tell the user:
-  > Settings → Connectors → Add custom connector. Name: `remember.me`, URL:
+  > Settings → Connectors → Add custom connector. Name: `remember-me`, URL:
   > `https://remember-me.fastapicloud.dev/mcp`. Add, then Connect and sign in. Then say "start memory for this
   > project" in a new chat.
 - **Claude Code:** run `claude mcp add --transport http remember https://remember-me.fastapicloud.dev/mcp`; the user
@@ -71,7 +71,7 @@ command `python3` and args `["<home>/.remember-me/remember/cli.py", "mcp"]`, in 
 
 ### 2. Python (on the user's computer only)
 
-remember.me needs Python 3.9+ and nothing else. If you can run commands, check `python3 --version` (Windows:
+remember-me needs Python 3.9+ and nothing else. If you can run commands, check `python3 --version` (Windows:
 `python --version`).
 - macOS without it: running `python3` pops up an offer to install Apple's developer tools; tell the user to accept.
 - Windows without it: the user installs Python from python.org (tick "Add to PATH"). If only `python` exists, use
@@ -94,8 +94,13 @@ You can rename, merge, move or close topics there. If the link stops loading, as
 always running, ask "keep my memory map running"; to stop it, ask "stop my memory map".
 
 **Older conversations:** starting memory only captures the chat you're in (plus, in Claude Code, earlier sessions
-still on disk). For older claude.ai chats, export your data (claude.ai → Settings → Privacy → Export data) and ask
-your assistant to import it. It lists the conversations so you pick only the ones for this project.
+still on disk). For older claude.ai chats, export your data (claude.ai → Settings → Privacy → Export data), then
+either open your account page (https://remember-me.fastapicloud.dev/account → Bring memory in) or ask your assistant
+on a computer with the plugin to import it. Either way you pick only the conversations for this project.
+
+**Your account** (https://remember-me.fastapicloud.dev/account): your projects, download everything, bring memory in
+(a claude.ai export or a `.remember` folder from a computer), connected computers, delete a project or everything.
+Privacy: https://remember-me.fastapicloud.dev/privacy.
 
 **Switching between online and on-your-computer:** on a computer with the plugin, say "go offline" or "go back
 online". The first time, your assistant shows you a link to allow that computer into your account. Going offline you
@@ -139,6 +144,6 @@ The same operations are available as MCP tools (`remember_*`) and as a CLI (`rem
 | `builder-prompt` · `chunks` · `chunk` · `ops` · `coverage` · `validate` | building the map |
 
 Settings: `REMEMBER_HOME` (store, default `~/.remember`), `REMEMBER_PROJECT` (pin the project),
-`REMEMBER_AUTOBUILD` (`session` default, `background`, `off`). Last-resort viewer stop without remember.me:
+`REMEMBER_AUTOBUILD` (`session` default, `background`, `off`). Last-resort viewer stop without remember-me:
 `lsof -ti tcp:8765 | xargs kill` (macOS/Linux); `netstat -ano | findstr :8765` then `taskkill /PID <pid> /F` (Windows).
 Tested on Linux (Python 3.9, 3.11–3.13) and macOS via the Claude desktop app; Windows not yet tried.

@@ -1,6 +1,6 @@
-# remember.me — map builder spec (v1: ordered replay)
+# remember-me — map builder spec (v1: ordered replay)
 
-`remember …` below means however you run the remember.me CLI (`python3 <install dir>/remember/cli.py …`), or the matching `remember_*` MCP tool.
+`remember …` below means however you run the remember-me CLI (`python3 <install dir>/remember/cli.py …`), or the matching `remember_*` MCP tool.
 
 You maintain a project's **memory map**: a small, information-dense graph that a future assistant reads at the start of every session (and after every compaction) to know what happened, what was decided, what is open, and how this person wants work done. When the map isn't enough, that assistant follows span pointers back to the verbatim log.
 

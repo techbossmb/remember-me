@@ -1,4 +1,4 @@
-"""remember.me online: the same remember_* tools as the local plugin, served over MCP's HTTP transport, with each
+"""remember-me online: the same remember_* tools as the local plugin, served over MCP's HTTP transport, with each
 signed-in user's memory in Postgres (Neon). Deployed on FastAPI Cloud (`fastapi deploy` from the repo root).
 
 How sign-in works: this service is an OAuth *resource server*. An auth provider (the "authorization server") signs
@@ -47,7 +47,7 @@ async def lifespan(app):
         _pool.close()
 
 
-app = FastAPI(title="remember.me", docs_url=None, redoc_url=None, lifespan=lifespan)
+app = FastAPI(title="remember-me", docs_url=None, redoc_url=None, lifespan=lifespan)
 
 DB_URL = os.environ.get("REMEMBER_DATABASE_URL", "")
 PUBLIC_URL = os.environ.get("REMEMBER_PUBLIC_URL", "").rstrip("/")
@@ -168,7 +168,7 @@ def _base(request):
 
 def _unauthorized(request):
     meta = f"{_base(request)}/.well-known/oauth-protected-resource"
-    return JSONResponse({"error": "unauthorized", "message": "sign in to remember.me"}, status_code=401,
+    return JSONResponse({"error": "unauthorized", "message": "sign in to remember-me"}, status_code=401,
                         headers={"WWW-Authenticate": f'Bearer resource_metadata="{meta}"'})
 
 
@@ -181,8 +181,8 @@ def _token(request):
 
 @app.get("/")
 def home():
-    return PlainTextResponse("remember.me: long-term memory for AI assistants. Add this service's /mcp address to "
-                             "your assistant as a connector.\n")
+    return HTMLResponse(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "home.html"),
+                             encoding="utf-8").read())
 
 
 @app.get("/healthz")
@@ -204,7 +204,7 @@ def healthz_db():
 def protected_resource(request: Request):
     base = _base(request)
     return {"resource": f"{base}/mcp", "authorization_servers": [ISSUER] if ISSUER else [],
-            "bearer_methods_supported": ["header"], "resource_name": "remember.me"}
+            "bearer_methods_supported": ["header"], "resource_name": "remember-me"}
 
 
 @app.post("/mcp")
@@ -291,7 +291,7 @@ def _map_url(project=None):
 
 def _show_map(project):
     return (f"{_map_url(project)}\nThe user's live memory map. It opens in any browser; the first time, they sign in "
-            "with the same account they connected remember.me with, and then stay signed in.")
+            "with the same account they connected remember-me with, and then stay signed in.")
 
 
 @app.get("/map")
@@ -336,7 +336,8 @@ def auth_callback(request: Request, code: str = "", state: str = ""):
     r = Response(status_code=303, headers={"Location": nxt if nxt.startswith("/") and not nxt.startswith("//") else "/map",
                                            **NOSTORE})
     r.delete_cookie("rm_next")
-    r.set_cookie(COOKIE, _sign({"u": _user_id(user["id"]), "exp": int(time.time()) + SESSION_DAYS * 86400}),
+    r.set_cookie(COOKIE, _sign({"u": _user_id(user["id"]), "e": user.get("email", ""),
+                                "exp": int(time.time()) + SESSION_DAYS * 86400}),
                  max_age=SESSION_DAYS * 86400, httponly=True, secure=True, samesite="lax")
     r.delete_cookie("rm_state")
     return r
@@ -344,7 +345,7 @@ def auth_callback(request: Request, code: str = "", state: str = ""):
 
 @app.get("/logout")
 def logout():
-    r = PlainTextResponse("Signed out of the remember.me map.", headers=NOSTORE)
+    r = PlainTextResponse("Signed out of the remember-me map.", headers=NOSTORE)
     r.delete_cookie(COOKIE)
     return r
 
@@ -399,7 +400,7 @@ def mcp_get():
 @app.get("/account/export")
 def export(request: Request):
     """Everything this user has stored, as a zip in the same layout as ~/.remember (so it works offline too)."""
-    user = user_for(_token(request))
+    user = _web_user(request) or user_for(_token(request))
     if not user:
         return _unauthorized(request)
     buf = io.BytesIO()
@@ -407,7 +408,7 @@ def export(request: Request):
         for path, content in store_pg.PgStore(conn, user).walk():
             z.writestr(path, content)
     return Response(buf.getvalue(), media_type="application/zip",
-                    headers={"Content-Disposition": 'attachment; filename="remember-export.zip"'})
+                    headers={"Content-Disposition": 'attachment; filename="remember-me-export.zip"', **NOSTORE})
 
 
 @app.delete("/account/data")
@@ -418,12 +419,12 @@ def delete_all(request: Request):
         return _unauthorized(request)
     with pool().connection() as conn:
         store_pg.PgStore(conn, user).delete_all()
-    return {"ok": True, "deleted": "all of your remember.me memory"}
+    return {"ok": True, "deleted": "all of your remember-me memory"}
 
 
 # ---------------------------------------------------------------- computers: device sign-in
-# A computer running the local remember.me server signs in once: it gets a code and a link, the user opens the link
-# (signed in to remember.me in the browser) and allows it, and the computer receives a long-lived token for this
+# A computer running the local remember-me server signs in once: it gets a code and a link, the user opens the link
+# (signed in to remember-me in the browser) and allows it, and the computer receives a long-lived token for this
 # account. Same pattern as `fastapi login` or a TV app.
 
 DEVICE_TTL = 600
@@ -475,9 +476,9 @@ def device_page(request: Request, code: str = ""):
         row = c.execute("select name from rm_device_codes where user_code = %s and expires > now() and user_id is null",
                         (code.upper(),)).fetchone()
     if not row:
-        return _page("remember.me", "<h1>That code has expired or was already used</h1><p>Ask your assistant to "
+        return _page("remember-me", "<h1>That code has expired or was already used</h1><p>Ask your assistant to "
                                     "connect this computer again.</p>")
-    return _page("Allow this computer", f"""<h1>Allow {html.escape(row[0])} to use your remember.me memory?</h1>
+    return _page("Allow this computer", f"""<h1>Allow {html.escape(row[0])} to use your remember-me memory?</h1>
 <p>Check this code matches the one your assistant showed you:</p><p><code>{html.escape(code.upper())}</code></p>
 <p>It will be able to read and save memory in your account, and take projects offline.</p>
 <form method="post" action="/device/approve"><input type="hidden" name="code" value="{html.escape(code.upper())}">
@@ -499,10 +500,10 @@ async def device_approve(request: Request):
         row = c.execute("update rm_device_codes set user_id = %s, token = %s where user_code = %s and expires > now() "
                         "and user_id is null returning name", (user, token, code)).fetchone()
         if not row:
-            return _page("remember.me", "<h1>That code has expired or was already used</h1>")
+            return _page("remember-me", "<h1>That code has expired or was already used</h1>")
         c.execute("insert into rm_tokens (token_hash, user_id, device_id, name) values (%s, %s, %s, %s)",
                   (hashlib.sha256(token.encode()).hexdigest(), user, "dev_" + secrets.token_hex(8), row[0]))
-    return _page("Done", f"<h1>Done</h1><p>{row[0]} is connected to your remember.me memory. You can close this page "
+    return _page("Done", f"<h1>Done</h1><p>{row[0]} is connected to your remember-me memory. You can close this page "
                          "and go back to your assistant.</p>")
 
 
@@ -637,3 +638,148 @@ async def sync_release(request: Request):
         conn.execute("delete from rm_holds where user_id = %s and project = %s and device_id = %s",
                      (user, p, device["id"]))
     return {"ok": True}
+
+
+# ---------------------------------------------------------------- account page
+# /account: what's stored, export, import (a ~/.remember zip or a claude.ai export, read in the browser so only what
+# the user picks is sent), connected computers, deleting a project or everything.
+
+ACCOUNT_HTML = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "account.html"), encoding="utf-8").read()
+
+
+def _web_call(request, mutate=False):
+    user = _web_user(request)
+    if not user:
+        return None, JSONResponse({"error": "sign in again"}, status_code=401, headers=NOSTORE)
+    if mutate and request.headers.get("origin") not in (None, PUBLIC_URL):
+        return None, JSONResponse({"error": "bad origin"}, status_code=403)
+    return user, None
+
+
+@app.get("/account")
+def account_page(request: Request):
+    if not _web_user(request):
+        return Response(status_code=303, headers={"Location": "/login?next=/account", **NOSTORE})
+    return HTMLResponse(ACCOUNT_HTML, headers=NOSTORE)
+
+
+@app.get("/api/account")
+def account_data(request: Request):
+    user, err = _web_call(request)
+    if err:
+        return err
+    email = (_unsign(request.cookies.get(COOKIE, "")) or {}).get("e", "")
+    with _tool_lock, pool().connection() as conn:
+        st = store_pg.PgStore(conn, user)
+        holds = _holds(conn, user)
+        names = sorted(set(st.listdir("log")) | set(st.listdir("maps")))
+        projects = []
+        for p in names:
+            files = st.files(f"log/{p}/") + st.files(f"maps/{p}/")
+            projects.append({"name": p, "files": len(files), "bytes": sum(len(c.encode()) for _, c in files),
+                             "chats": sum(1 for f, _ in files if f.startswith("log/") and f.endswith(".md")
+                                          and not f.endswith(".compactions.md")),
+                             "mapped": any(f == f"maps/{p}/events.jsonl" for f, _ in files), "held": holds.get(p)})
+        devices = [{"id": r[0], "name": r[1], "created": r[2].isoformat(), "last_used": r[3].isoformat() if r[3] else None}
+                   for r in conn.execute("select device_id, name, min(created), max(last_used) from rm_tokens "
+                                         "where user_id = %s group by device_id, name order by 3", (user,))]
+    return JSONResponse({"email": email, "projects": projects, "devices": devices}, headers=NOSTORE)
+
+
+@app.delete("/api/account/project")
+def account_delete_project(request: Request, name: str):
+    user, err = _web_call(request, mutate=True)
+    if err:
+        return err
+    with _tool_lock, pool().connection() as conn:
+        st = store_pg.PgStore(conn, user)
+        for prefix in (f"log/{name}/", f"maps/{name}/"):
+            st.delete_prefix(prefix)
+        conn.execute("delete from rm_holds where user_id = %s and project = %s", (user, name))
+    return {"ok": True}
+
+
+@app.delete("/api/account/device")
+def account_revoke_device(request: Request, id: str):
+    user, err = _web_call(request, mutate=True)
+    if err:
+        return err
+    with pool().connection() as conn:
+        conn.execute("delete from rm_tokens where user_id = %s and device_id = %s", (user, id))
+    return {"ok": True}
+
+
+@app.delete("/api/account/all")
+def account_delete_all(request: Request, confirm: str = ""):
+    user, err = _web_call(request, mutate=True)
+    if err:
+        return err
+    if confirm != "delete everything":
+        return JSONResponse({"error": "confirm with the words: delete everything"}, status_code=400)
+    with _tool_lock, pool().connection() as conn:
+        store_pg.PgStore(conn, user).delete_all()
+        conn.execute("delete from rm_holds where user_id = %s", (user,))
+    return {"ok": True}
+
+
+@app.post("/api/account/import/files")
+async def account_import_files(request: Request):
+    """One project from a ~/.remember folder (zipped): {project, files: {path: text}, replace: bool}."""
+    user, err = _web_call(request, mutate=True)
+    if err:
+        return err
+    body = await request.json()
+    import cli
+    p = cli.slug(body.get("project") or "")
+    files = body.get("files") or {}
+    if not p or not files or any(not k.startswith((f"log/{p}/", f"maps/{p}/")) for k in files):
+        return JSONResponse({"error": f"files must all be under log/{p}/ or maps/{p}/"}, status_code=400)
+    with _tool_lock, pool().connection() as conn:
+        st = store_pg.PgStore(conn, user)
+        if p in _holds(conn, user):
+            return JSONResponse({"error": f"{p} is offline on a computer; bring it back online there first"}, status_code=409)
+        exists = st.isdir(f"log/{p}") or st.isdir(f"maps/{p}")
+        if exists and not body.get("replace"):
+            return JSONResponse({"error": f"{p} already exists here", "exists": True}, status_code=409)
+        with conn.transaction():
+            for prefix in (f"log/{p}/", f"maps/{p}/"):
+                st.delete_prefix(prefix)
+            for k, v in files.items():
+                st.write(k, v)
+        memmap._LOG_CACHE.clear()
+    return {"ok": True, "project": p, "files": len(files), "replaced": exists}
+
+
+@app.post("/api/account/import/claude")
+async def account_import_claude(request: Request):
+    """Conversations picked from a claude.ai data export: {project, conversations: [raw conversation objects]}.
+    They join the project's log; the user's assistant maps them the next time they work in that project."""
+    user, err = _web_call(request, mutate=True)
+    if err:
+        return err
+    body = await request.json()
+    import cli
+    import tempfile
+    p = cli.slug(body.get("project") or "")
+    convs = [c for c in body.get("conversations") or [] if isinstance(c, dict) and c.get("uuid")]
+    if not p or not convs:
+        return JSONResponse({"error": "pick a project name and at least one conversation"}, status_code=400)
+    fd, tmp = tempfile.mkstemp(suffix=".json", prefix="rm-import-")
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
+        json.dump(convs, f)
+    try:
+        with _tool_lock, pool().connection() as conn:
+            if p in _holds(conn, user):
+                return JSONResponse({"error": f"{p} is offline on a computer; bring it back online there first"},
+                                    status_code=409)
+            report = cli.import_export(store_pg.PgStore(conn, user), p, tmp, picks=["all"])
+            memmap._LOG_CACHE.clear()
+    finally:
+        os.remove(tmp)
+    return {"ok": True, "project": p, "report": report}
+
+
+@app.get("/privacy")
+def privacy():
+    return HTMLResponse(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "privacy.html"),
+                             encoding="utf-8").read())
