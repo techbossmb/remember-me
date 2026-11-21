@@ -54,7 +54,7 @@ code.u{overflow-wrap:anywhere}
 <li>Name <code>remember-me</code>, URL <code class="u">https://remember-me.fastapicloud.dev/mcp</code>, authentication OAuth.</li>
 <li>Sign in when asked, then in a chat say <b>"start memory for this project"</b>.</li>
 </ol><p class="mut">Custom MCP servers depend on your ChatGPT plan; OpenAI moves this setting from time to time.</p></div><div role="tabpanel" id="p-muse" aria-labelledby="t-muse" hidden><ol>
-<li>Tell Muse: <b>"Connect remember-me: remember-me.fastapicloud.dev"</b></li>
+<li>Tell Muse: <b>"Add remember-me as a custom connector: remember-me.fastapicloud.dev"</b></li>
 <li>Sign in when Muse asks you to.</li>
 <li>Then: <b>"start memory for this project"</b>.</li>
 </ol></div><div role="tabpanel" id="p-code" aria-labelledby="t-code" hidden><p>In a terminal:</p>
@@ -66,7 +66,7 @@ code.u{overflow-wrap:anywhere}
 <p>Start it and sign in. Used by GitHub Copilot's agent mode.</p></div><div role="tabpanel" id="p-gemini" aria-labelledby="t-gemini" hidden><p>Add to <code>~/.gemini/settings.json</code> (note <code>httpUrl</code>, not <code>url</code>):</p>
 <pre><code>{ "mcpServers": { "remember-me": { "httpUrl": "https://remember-me.fastapicloud.dev/mcp" } } }</code></pre>
 <p>Restart the CLI; it opens sign-in in your browser the first time.</p></div><div role="tabpanel" id="p-codex" aria-labelledby="t-codex" hidden><pre><code>codex mcp add remember-me --url https://remember-me.fastapicloud.dev/mcp
-codex mcp login remember-me</code></pre></div><div role="tabpanel" id="p-other" aria-labelledby="t-other" hidden><p>Any assistant that supports remote MCP servers with sign-in can add <code class="u">https://remember-me.fastapicloud.dev/mcp</code>. Or just tell your assistant: <b>"Connect remember-me: remember-me.fastapicloud.dev"</b>. The section below tells it what to do.</p></div>
+codex mcp login remember-me</code></pre></div><div role="tabpanel" id="p-other" aria-labelledby="t-other" hidden><p>Any assistant that supports remote MCP servers with sign-in can add <code class="u">https://remember-me.fastapicloud.dev/mcp</code>. Or just tell your assistant: <b>"Add remember-me as a custom connector: remember-me.fastapicloud.dev"</b>. The section below tells it what to do.</p></div>
 <div class="copy"><span class="mut">Connector address:</span><code id="mcp">https://remember-me.fastapicloud.dev/mcp</code><button id="cp">Copy</button></div>
 </div></li>
 <li>Connect, and sign in (Google, Microsoft, GitHub, Apple or email). That creates your account.</li>
