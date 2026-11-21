@@ -36,6 +36,10 @@ creates the user's account (Google, Microsoft, GitHub, Apple or email).
 - **Other MCP clients** (Cursor, VS Code/Copilot, Gemini CLI, Codex): add a remote (HTTP) MCP server named `remember`
   with that URL in the client's config; it handles sign-in. Not yet tested on these.
 
+If you call the service with your own code instead of a built-in MCP client, send a `User-Agent` that names your
+client (e.g. `my-assistant-connector/1.0`). The host's Cloudflare front refuses Python's default `Python-urllib`
+signature with error 1010; any honest client name gets through.
+
 Don't also install the on-your-computer version unless asked: two sets of `remember_*` tools in one session is
 confusing.
 
