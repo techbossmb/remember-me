@@ -21,7 +21,7 @@ Companion to DESIGN.md. Supersedes DESIGN.md's "Rejected: hosted raw logs" and t
 - **Computers sign in with a device code,** like `fastapi login`: the assistant shows a link + code, the user allows it on a signed-in page, the computer gets a long-lived token (stored hashed server-side, in `~/.remember/config.json` locally).
 - **Map while offline:** the local viewer on that computer; the online map shows the held snapshot read-only, or nothing if removed.
 - **Prepared for real merging later:** every map event now carries a globally unique `eid`. Two-way merge (writing the same project in both places at once) is deferred until someone needs it; it also needs thread-id remapping.
-- **Not yet in online mode on a computer:** importing a claude.ai export or Claude Code sessions (go offline, import, go back online); Claude Code hooks don't capture in online mode (the assistant saves through the tools).
+- **In online mode on a computer,** Claude Code hooks don't capture (the assistant saves through the tools). Imports work since 0.6.0 (see below).
 - Tests: `online/test_sync.py` runs a computer's local server against a running service: device sign-in, conflict refusal, pass-through, offline with read-only online copy (phone write refused, map marked), offline edits uploaded on return, remove-from-cloud and restore.
 
 ## Launch pieces (2026-11-21)
