@@ -22,6 +22,13 @@ button,.btn{font:inherit;font-size:14px;border-radius:8px;padding:7px 14px;borde
 .btn.primary{background:var(--acc);color:var(--acc-fg);border-color:var(--acc)}
 nav{display:flex;gap:10px;flex-wrap:wrap;margin-top:28px}
 .mut{color:var(--mut)} a{color:var(--acc)}
+.tabs{display:flex;gap:6px;overflow-x:auto;margin:12px 0 4px;padding-bottom:4px;scrollbar-width:thin}
+.tabs button{white-space:nowrap;padding:6px 12px;border-radius:999px}
+.tabs button[aria-selected="true"]{background:var(--acc);color:var(--acc-fg);border-color:var(--acc)}
+[role=tabpanel] ol{margin:10px 0}
+pre{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px 12px;overflow-x:auto;font-size:13px}
+pre code{background:none;border:0;padding:0}
+code.u{overflow-wrap:anywhere}
 </style>
 </head>
 <body>
@@ -30,11 +37,33 @@ nav{display:flex;gap:10px;flex-wrap:wrap;margin-top:28px}
 <p class="lede">Long-term memory for your AI assistant. It keeps your conversations word for word, builds a map of what was decided, what's open and the rules you've set, and hands it to the assistant every time you come back.</p>
 
 <div class="box">
-<b>Add it to Claude</b>
-<ol>
+<b>Connect your assistant</b>
+<div class="tabs" role="tablist" aria-label="Assistant"><button role="tab" id="t-claude" aria-controls="p-claude" aria-selected="true" tabindex="0">Claude</button><button role="tab" id="t-chatgpt" aria-controls="p-chatgpt" aria-selected="false" tabindex="-1">ChatGPT</button><button role="tab" id="t-muse" aria-controls="p-muse" aria-selected="false" tabindex="-1">Meta Muse</button><button role="tab" id="t-code" aria-controls="p-code" aria-selected="false" tabindex="-1">Claude Code</button><button role="tab" id="t-cursor" aria-controls="p-cursor" aria-selected="false" tabindex="-1">Cursor</button><button role="tab" id="t-vscode" aria-controls="p-vscode" aria-selected="false" tabindex="-1">VS Code</button><button role="tab" id="t-gemini" aria-controls="p-gemini" aria-selected="false" tabindex="-1">Gemini CLI</button><button role="tab" id="t-codex" aria-controls="p-codex" aria-selected="false" tabindex="-1">Codex</button><button role="tab" id="t-other" aria-controls="p-other" aria-selected="false" tabindex="-1">Other</button></div>
+<div role="tabpanel" id="p-claude" aria-labelledby="t-claude"><ol>
 <li>Settings → Connectors → <b>Add custom connector</b>.</li>
-<li>Name it <code>remember-me</code> and use this address:
-  <div class="copy"><code id="mcp">https://remember-me.fastapicloud.dev/mcp</code><button id="cp">Copy</button></div></li>
+<li>Name <code>remember-me</code>, URL <code class="u">https://remember-me.fastapicloud.dev/mcp</code></li>
+<li>Connect and sign in (Google, Microsoft, GitHub, Apple or email). That creates your account.</li>
+<li>In a chat in your project, say <b>"start memory for this project"</b>.</li>
+</ol><p class="mut">Works in the Claude app, on the web and on your phone.</p></div><div role="tabpanel" id="p-chatgpt" aria-labelledby="t-chatgpt" hidden><ol>
+<li>Go to <b>chatgpt.com/plugins</b> → <b>Add</b> → <b>Create custom MCP server</b>. If you don't see it, turn on Developer mode first (Settings → Security and login).</li>
+<li>Name <code>remember-me</code>, URL <code class="u">https://remember-me.fastapicloud.dev/mcp</code>, authentication OAuth.</li>
+<li>Sign in when asked, then in a chat say <b>"start memory for this project"</b>.</li>
+</ol><p class="mut">Custom MCP servers depend on your ChatGPT plan; OpenAI moves this setting from time to time.</p></div><div role="tabpanel" id="p-muse" aria-labelledby="t-muse" hidden><ol>
+<li>Tell Muse: <b>"Set up a custom connector for remember-me. The page is https://remember-me.fastapicloud.dev/"</b></li>
+<li>Sign in when Muse asks you to.</li>
+<li>Then: <b>"start memory for this project"</b>.</li>
+</ol></div><div role="tabpanel" id="p-code" aria-labelledby="t-code" hidden><p>In a terminal:</p>
+<pre><code>claude mcp add --transport http remember-me https://remember-me.fastapicloud.dev/mcp</code></pre>
+<p>Then run <code>/mcp</code> in Claude Code to sign in, and say <b>"start memory for this project"</b>.</p></div><div role="tabpanel" id="p-cursor" aria-labelledby="t-cursor" hidden><p>Add to <code>~/.cursor/mcp.json</code> (or Settings → Tools &amp; MCP):</p>
+<pre><code>{ "mcpServers": { "remember-me": { "url": "https://remember-me.fastapicloud.dev/mcp" } } }</code></pre>
+<p>Enable it and follow the sign-in prompt.</p></div><div role="tabpanel" id="p-vscode" aria-labelledby="t-vscode" hidden><p>Command palette → <b>MCP: Add Server</b> → HTTP → paste the URL, or add to <code>mcp.json</code>:</p>
+<pre><code>{ "servers": { "remember-me": { "type": "http", "url": "https://remember-me.fastapicloud.dev/mcp" } } }</code></pre>
+<p>Start it and sign in. Used by GitHub Copilot's agent mode.</p></div><div role="tabpanel" id="p-gemini" aria-labelledby="t-gemini" hidden><p>Add to <code>~/.gemini/settings.json</code> (note <code>httpUrl</code>, not <code>url</code>):</p>
+<pre><code>{ "mcpServers": { "remember-me": { "httpUrl": "https://remember-me.fastapicloud.dev/mcp" } } }</code></pre>
+<p>Restart the CLI; it opens sign-in in your browser the first time.</p></div><div role="tabpanel" id="p-codex" aria-labelledby="t-codex" hidden><pre><code>codex mcp add remember-me --url https://remember-me.fastapicloud.dev/mcp
+codex mcp login remember-me</code></pre></div><div role="tabpanel" id="p-other" aria-labelledby="t-other" hidden><p>Any assistant that supports remote MCP servers with sign-in can add <code class="u">https://remember-me.fastapicloud.dev/mcp</code>. Or just tell your assistant: <b>"set up remember-me from https://remember-me.fastapicloud.dev/"</b>. The section below tells it what to do.</p></div>
+<div class="copy"><span class="mut">Connector address:</span><code id="mcp">https://remember-me.fastapicloud.dev/mcp</code><button id="cp">Copy</button></div>
+</div></li>
 <li>Connect, and sign in (Google, Microsoft, GitHub, Apple or email). That creates your account.</li>
 <li>In a chat in your project, say <b>"start memory for this project"</b>.</li>
 </ol>
@@ -67,6 +96,10 @@ nav{display:flex;gap:10px;flex-wrap:wrap;margin-top:28px}
 </main>
 <script>
 document.getElementById("cp").onclick=async e=>{try{await navigator.clipboard.writeText(document.getElementById("mcp").textContent);e.target.textContent="Copied"}catch{e.target.textContent="Select and copy"}};
+const tabs=[...document.querySelectorAll('[role=tab]')];
+function pick(t,focus){tabs.forEach(b=>{const on=b===t;b.setAttribute("aria-selected",on);b.tabIndex=on?0:-1;document.getElementById(b.getAttribute("aria-controls")).hidden=!on});if(focus)t.focus();try{localStorage.setItem("rm-tab",t.id)}catch{}}
+tabs.forEach((t,i)=>{t.onclick=()=>pick(t);t.onkeydown=e=>{const d=e.key==="ArrowRight"?1:e.key==="ArrowLeft"?-1:0;if(d)pick(tabs[(i+d+tabs.length)%tabs.length],true)}});
+try{const saved=document.getElementById(localStorage.getItem("rm-tab"));if(saved)pick(saved)}catch{}
 </script>
 </body>
 </html>

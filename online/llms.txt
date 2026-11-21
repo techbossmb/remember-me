@@ -13,6 +13,16 @@
 - If you write your own client code, send a User-Agent that names your client (e.g. my-assistant-connector/1.0).
   The host's Cloudflare front refuses Python's default "Python-urllib" signature with error 1010.
 
+## Per app (user-facing steps)
+- Claude (app, web, phone): Settings → Connectors → Add custom connector → the URL.
+- ChatGPT: chatgpt.com/plugins → Add → Create custom MCP server (Developer mode in Settings → Security and login if
+  missing) → the URL, OAuth.
+- Claude Code: `claude mcp add --transport http remember-me https://remember-me.fastapicloud.dev/mcp`, then /mcp to sign in.
+- Cursor: ~/.cursor/mcp.json → {"mcpServers": {"remember-me": {"url": "<URL>"}}}
+- VS Code: mcp.json → {"servers": {"remember-me": {"type": "http", "url": "<URL>"}}}
+- Gemini CLI: ~/.gemini/settings.json → {"mcpServers": {"remember-me": {"httpUrl": "<URL>"}}}
+- Codex: `codex mcp add remember-me --url <URL>` then `codex mcp login remember-me`.
+
 ## Use
 - Call remember_guide once and follow it. Always pass `project` (the name of what the user is working on;
   remember_projects lists existing ones) and, when saving, a stable `session` name for the conversation.
